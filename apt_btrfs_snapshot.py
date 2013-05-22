@@ -107,7 +107,7 @@ class AptBtrfsSnapshot(object):
     # normal snapshot
     SNAP_PREFIX = "@apt-snapshot-"
     # backname when changing
-    BACKUP_PREFIX = SNAP_PREFIX+"old-root-"
+    BACKUP_PREFIX = SNAP_PREFIX + "old-root-"
 
     def __init__(self, fstab="/etc/fstab"):
         self.fstab = Fstab(fstab)
@@ -123,14 +123,15 @@ class AptBtrfsSnapshot(object):
             return False
         # check the fstab
         entry = self._get_supported_btrfs_root_fstab_entry()
-        return entry != None
+        return entry is not None
 
     def _get_supported_btrfs_root_fstab_entry(self):
         """ return the supported btrfs root FstabEntry or None """
         for entry in self.fstab:
-            if (entry.mountpoint == "/" and
-                entry.fstype == "btrfs" and
-                "subvol=@" in entry.options):
+            if (
+                    entry.mountpoint == "/" and
+                    entry.fstype == "btrfs" and
+                    "subvol=@" in entry.options):
                 return entry
         return None
 
@@ -156,14 +157,15 @@ class AptBtrfsSnapshot(object):
         return res
 
     def _get_now_str(self):
-        return  datetime.datetime.now().replace(microsecond=0).isoformat(str('_'))
+        return datetime.datetime.now().replace(microsecond=0).isoformat(
+            str('_'))
 
     def create_btrfs_root_snapshot(self, additional_prefix=""):
         mp = self.mount_btrfs_root_volume()
         snap_id = self._get_now_str()
         res = self.commands.btrfs_subvolume_snapshot(
             os.path.join(mp, "@"),
-            os.path.join(mp, self.SNAP_PREFIX+additional_prefix+snap_id))
+            os.path.join(mp, self.SNAP_PREFIX + additional_prefix + snap_id))
         self.umount_btrfs_root_volume()
         return res
 
@@ -212,9 +214,10 @@ class AptBtrfsSnapshot(object):
         try:
             print("Available snapshots older than '%s':" % timefmt)
             print("  \n".join(self.get_btrfs_root_snapshots_list(
-                    older_than=older_than_unixtime)))
+                older_than=older_than_unixtime)))
         except AptBtrfsRootWithNoatimeError:
-            sys.stderr.write("Error: fstab option 'noatime' incompatible with option")
+            sys.stderr.write("Error: fstab option 'noatime' incompatible "
+                             "with option")
             return False
         return True
 
@@ -223,10 +226,11 @@ class AptBtrfsSnapshot(object):
         older_than_unixtime = self._parse_older_than_to_unixtime(timefmt)
         try:
             for snap in self.get_btrfs_root_snapshots_list(
-                older_than=older_than_unixtime):
+                    older_than=older_than_unixtime):
                 res &= self.delete_snapshot(snap)
         except AptBtrfsRootWithNoatimeError:
-            sys.stderr.write("Error: fstab option 'noatime' incompatible with option")
+            sys.stderr.write("Error: fstab option 'noatime' incompatible with "
+                             "option")
             return False
         return res
 
@@ -238,26 +242,25 @@ class AptBtrfsSnapshot(object):
         """ set new default """
         mp = self.mount_btrfs_root_volume()
         new_root = os.path.join(mp, snapshot_name)
-        if os.path.isdir(new_root) and snapshot_name.startswith(self.SNAP_PREFIX) and snapshot_name != "@":
+        if (
+                os.path.isdir(new_root) and
+                snapshot_name.startswith("@") and
+                snapshot_name != "@"):
             default_root = os.path.join(mp, "@")
             backup = os.path.join(mp, self.BACKUP_PREFIX + self._get_now_str())
             os.rename(default_root, backup)
             os.rename(new_root, default_root)
-            print("Default changed to %s, please reboot for changes to take effect." % snapshot_name)
+            print("Default changed to %s, please reboot for changes to take "
+                  "effect." % snapshot_name)
         else:
-            print("You have selected an invalid snapshot. Please make sure that it exists,")
-            print("and that its name starts with \"%s\"." % self.SNAP_PREFIX)
+            print("You have selected an invalid snapshot. Please make sure "
+                  "that it exists, and that it is not \"@\".")
         self.umount_btrfs_root_volume()
         return True
 
     def delete_snapshot(self, snapshot_name):
         mp = self.mount_btrfs_root_volume()
-        to_delete = os.path.join(mp, snapshot_name)
-        res = True
-        if os.path.isdir(to_delete) and snapshot_name.startswith(self.SNAP_PREFIX) and snapshot_name != "@":
-            res = self.commands.btrfs_delete_snapshot(to_delete)
-        else:
-            print("You have selected an invalid snapshot. Please make sure that it exists,")
-            print("and that its name starts with \"%s\"." % self.SNAP_PREFIX)
+        res = self.commands.btrfs_delete_snapshot(
+            os.path.join(mp, snapshot_name))
         self.umount_btrfs_root_volume()
         return res

@@ -1,0 +1,94 @@
+=encoding utf-8
+
+=head1 NAME
+
+apt-btrfs-snapshot - Integrate btrfs snapshots with APT
+
+
+=head1 SYNOPSIS
+
+B<apt-btrfs-snapshot> [-h | --help | --debug | -q] { supported | list | 
+list-older-than | snapshot | set-default I<snapshot> | delete I<snapshot> | 
+delete-older-than I<days>B<d> }
+
+=head1 DESCRIPTION
+
+B<apt-btrfs-snapshot> is used to create and manage snapshots of the root 
+filesystem. An APT hook is also installed to automatically create a snapshot
+every time APT is run.
+
+
+=head1 OPTIONS
+
+=over
+
+=item B<-q>
+
+Suppresses all output. Even from commands like "list"
+
+=back 
+
+=head1 ACTIONS
+
+=over
+
+=item snapshot		    
+
+Creates a snapshot
+ 
+=item list
+
+Lists all snapshots matching current configuration
+
+=item list-older-than I<days>B<d>
+
+Lists all snapshots older than I<days> days.
+
+=item delete I<snapshot>	
+
+Deletes a snapshot 
+                    
+=item delete-older-than I<days>d
+
+Deletes all snapshots older than I<days> days. The value "0d" can be used
+to delete all days.
+
+=item show-configuration
+
+Displays current configuration
+
+=item supported          
+
+Tells the user if the system supports snapshots. If snapshots are not
+supported, returns with a non-zero exit code.
+
+=back
+
+=head1 CONFIGURATION
+
+apt-btrfs-snapshot supports the following APT configuration variables:
+
+=over
+
+=item APT::Snapshots::RootSubvolume
+
+The btrfs subvolume that snapshots are based on. Defaults to "@"
+
+=item APT::Snapshots::Prefix
+
+A prefix attached to each snapshot. Defaults to "@apt-snapshot"
+
+=item APT::Snapshots::MaxAge
+
+Number of days that snapshots are kept for until cleaned by the default cron
+job. Defaults to "90")
+
+=back
+
+In addition, if the environment variable B<APT_NO_SNAPSHOTS> is set when
+apt-btrfs-snapshot is run, no snapshots will be created.
+
+
+=head1 SEE ALSO
+
+apt.conf(5) btrfs(8)
