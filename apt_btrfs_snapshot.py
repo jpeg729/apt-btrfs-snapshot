@@ -79,6 +79,59 @@ class Fstab(list):
                 self.append(entry)
 
 
+class AptHistoryEntry(object):
+    """ a single apt history.log entry """
+    def __init__(self, start, end, installs, upgrades, removes, purges):
+        # uuid or device
+        self.start = start
+        self.end = mountpoint
+        self.installs = installs
+        self.upgrades = upgrades
+        self.removes = removes
+        self.purges = purges
+
+    def __repr__(self):
+        return "<AptHistoryEntry '%s' '%s' '%s' '%s' '%s' '%s'>" % (
+            self.start, self.end, self.installs,
+            self.upgrades, self.removes, self.purges)
+
+
+class AptHistoryLog(list):
+    """ list of Apt history.log entries """
+    def __init__(self, location="/var/log/apt/"):
+        super(AptHistoryLog, self).__init__()
+
+        logfile = location + "history.log"
+        with open(logfile) as log_file:
+            start, end, installs, upgrades, removes, purges = "", "", "", "", "", ""
+            for line in (l.strip() for l in log_file):
+                if line == "" or line.startswith("#"):
+                    continue
+                
+                linetype, contents = line.split(":", 1)
+                
+                #TODO parsing into better formats
+                if linetype == "Start-Date":
+                    start = contents
+                elif linetype == "End-Date":
+                    end = contents
+                elif linetype == "Install":
+                    installs = contents
+                elif linetype == "Upgrade":
+                    upgrades = contents
+                elif linetype == "Remove":
+                    removes = contents
+                elif linetype == "Purge":
+                    purges = contents
+                
+                #try:
+                entry = AptHistoryEntry(start, end, installs, upgrades, removes, purges)
+                start, end, installs, upgrades, removes, purges = "", "", "", "", "", ""
+                #except ValueError:
+                #    continue
+                self.append(entry)
+
+
 class LowLevelCommands(object):
     """ lowlevel commands invoked to perform various tasks like
         interact with mount and btrfs tools
