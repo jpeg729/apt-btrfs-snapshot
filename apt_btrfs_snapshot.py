@@ -244,8 +244,7 @@ class AptBtrfsSnapshot(object):
         new_root = os.path.join(mp, snapshot_name)
         if (
                 os.path.isdir(new_root) and
-                snapshot_name.startswith("@") and
-                snapshot_name != "@"):
+                snapshot_name.startswith(self.SNAP_PREFIX)):
             default_root = os.path.join(mp, "@")
             backup = os.path.join(mp, self.BACKUP_PREFIX + self._get_now_str())
             os.rename(default_root, backup)
@@ -254,13 +253,22 @@ class AptBtrfsSnapshot(object):
                   "effect." % snapshot_name)
         else:
             print("You have selected an invalid snapshot. Please make sure "
-                  "that it exists, and that it is not \"@\".")
+                  "that it exists, and that its name starts with "
+                  "\"%s\"" % self.SNAP_PREFIX)
         self.umount_btrfs_root_volume()
         return True
 
     def delete_snapshot(self, snapshot_name):
         mp = self.mount_btrfs_root_volume()
-        res = self.commands.btrfs_delete_snapshot(
-            os.path.join(mp, snapshot_name))
+        to_delete = os.path.join(mp, snapshot_name)
+        res = True
+        if (
+                os.path.isdir(to_delete) and
+                snapshot_name.startswith(self.SNAP_PREFIX)):
+            res = self.commands.btrfs_delete_snapshot(to_delete)
+        else:
+            print("You have selected an invalid snapshot. Please make sure "
+                  "that it exists, and that its name starts with "
+                  "\"%s\"" % self.SNAP_PREFIX)
         self.umount_btrfs_root_volume()
         return res
