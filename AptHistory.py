@@ -95,7 +95,7 @@ class AptHistoryLog(list):
         for i in range(1, 10):
             length = len(self)
             try:
-                logfile = os.path.join(location, "history.log.1.gz")
+                logfile = os.path.join(location, "history.log.%d.gz" % i)
                 self._parse_file(gzip.GzipFile(logfile))
             except IOError:
                 pass
@@ -105,13 +105,12 @@ class AptHistoryLog(list):
     def _parse_file(self, log_file):
         """ Read file object in and parse the entries """
         start, end, installs, upgrades, removes, purges = "", "", "", "", "", ""
-        for line in (l.strip() for l in log_file):
-            if line == "" or line.startswith("#"):
+        for line in (l.strip().decode("utf-8") for l in log_file):
+            if len(line) == 0 or line.startswith("#"):
                 continue
             
             linetype, contents = line.split(":", 1)
             
-            #TODO parse dates into better formats
             if linetype == "Start-Date":
                 start = datetime.strptime(contents.strip(), 
                                           "%Y-%m-%d  %H:%M:%S")

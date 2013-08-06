@@ -25,6 +25,11 @@ import sys
 import time
 import tempfile
 from AptHistory import AptHistoryLog
+import cPickle as pickle
+
+
+def debug(*args):
+    print(*args)
 
 
 class AptBtrfsSnapshotError(Exception):
@@ -161,39 +166,55 @@ class AptBtrfsSnapshot(object):
         return datetime.datetime.now().replace(microsecond=0).isoformat(
             str('_'))
 
-    def create_btrfs_root_snapshot(self, additional_prefix=""):
+    def create_btrfs_root_snapshot(self, root="@"):
         mp = self.mount_btrfs_root_volume()
-        snap_id = self._get_now_str()
+        # find changes
+        # TODO pickle them and put them in the changes file
+        parent_file = os.path.join(mp, root, "etc", "apt-btrfs-parent")
+        changes_file = os.path.join(mp, root, "etc", "apt-btrfs-changes")
+        if os.path.exists(parent_file):
+            date_parent = os.readlink(parent_file)[20:]
+        else:
+            date_parent = None
+            debug("no date")
+        apt_history = AptHistoryLog(after = date_parent)
+        debug(apt_history)
+        pickle.dump(apt_history, open("testfile", "wb"))
+        # make snapshot
+        snap_id = self.SNAP_PREFIX + self._get_now_str()
         res = self.commands.btrfs_subvolume_snapshot(
-            os.path.join(mp, "@"),
-            os.path.join(mp, self.SNAP_PREFIX + additional_prefix + snap_id))
+            os.path.join(mp, root),
+            os.path.join(mp, snap_id))
+        # manage @/etc/apt-btrfs files
+        if os.path.exists(parent_file):
+            os.remove(parent_file)
+        if os.path.exists(changes_file):
+            os.remove(changes_file)
+        # set root's new parent
+        parent = os.path.join("..", "..", snap_id)
+        os.symlink(parent, parent_file)
+        # clean-up
         self.umount_btrfs_root_volume()
         return res
 
     def get_btrfs_root_snapshots_list(self, older_than=0):
         """ get the list of available snapshot
-            If "older_then" is given (in unixtime format) it will only include
+            If "older_then" is given (in datetime format) it will only include
             snapshots that are older then the given date)
         """
         l = []
-        # if older_than is used, ensure that the rootfs does not use
-        # "noatime"
-        if older_than != 0:
-            entry = self._get_supported_btrfs_root_fstab_entry()
-            if not entry:
-                raise AptBtrfsNotSupportedError()
-            if "noatime" in entry.options:
-                raise AptBtrfsRootWithNoatimeError()
-        # if there is no older than, interpret that as "now"
+        # if there is no older_than, interpret that as "now"
         if older_than == 0:
-            older_than = time.time()
+            older_than = datetime.datetime.now()
         mp = self.mount_btrfs_root_volume()
         for e in os.listdir(mp):
             if e.startswith(self.SNAP_PREFIX):
-                # fstab is read when it was booted and when a snapshot is
-                # created (to check if there is support for btrfs)
-                atime = os.path.getatime(os.path.join(mp, e, "etc", "fstab"))
-                if atime < older_than:
+                d = e[len(self.SNAP_PREFIX):]
+                try:
+                    date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")
+                except ValueError:
+                    date = older_than
+                if date < older_than:
                     l.append(e)
         self.umount_btrfs_root_volume()
         return l
@@ -203,36 +224,26 @@ class AptBtrfsSnapshot(object):
         print("  \n".join(self.get_btrfs_root_snapshots_list()))
         return True
 
-    def _parse_older_than_to_unixtime(self, timefmt):
-        now = time.time()
+    def _parse_older_than_to_datetime(self, timefmt):
+        now = datetime.datetime.now()
         if not timefmt.endswith("d"):
             raise Exception("Please specify time in days (e.g. 10d)")
         days = int(timefmt[:-1])
-        return now - (days * 24 * 60 * 60)
+        return now - datetime.timedelta(days)
 
     def print_btrfs_root_snapshots_older_than(self, timefmt):
-        older_than_unixtime = self._parse_older_than_to_unixtime(timefmt)
-        try:
-            print("Available snapshots older than '%s':" % timefmt)
-            print("  \n".join(self.get_btrfs_root_snapshots_list(
-                older_than=older_than_unixtime)))
-        except AptBtrfsRootWithNoatimeError:
-            sys.stderr.write("Error: fstab option 'noatime' incompatible "
-                             "with option")
-            return False
+        older_than = self._parse_older_than_to_datetime(timefmt)
+        print("Available snapshots older than '%s':" % timefmt)
+        print("  \n".join(self.get_btrfs_root_snapshots_list(
+            older_than=older_than)))
         return True
 
     def clean_btrfs_root_snapshots_older_than(self, timefmt):
         res = True
-        older_than_unixtime = self._parse_older_than_to_unixtime(timefmt)
-        try:
-            for snap in self.get_btrfs_root_snapshots_list(
-                    older_than=older_than_unixtime):
-                res &= self.delete_snapshot(snap)
-        except AptBtrfsRootWithNoatimeError:
-            sys.stderr.write("Error: fstab option 'noatime' incompatible with "
-                             "option")
-            return False
+        older_than = self._parse_older_than_to_datetime(timefmt)
+        for snap in self.get_btrfs_root_snapshots_list(
+                older_than=older_than):
+            res &= self.delete_snapshot(snap)
         return res
 
     def command_set_default(self, snapshot_name):

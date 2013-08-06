@@ -1,1 +1,13 @@
 
+AptBtrfsSnapshot.set_default
+    copy rather than rename
+    set parent
+    tests
+
+AptBtrfsSnapshot.create_root_snapshot
+    pickle changes
+    revamp tests
+    
+AptHistoryLog.consolidate
+    function to consolidate install/upgrade/purge/remove info from all 
+    AptHistoryEntry's
