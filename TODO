@@ -1,13 +1,14 @@
-
-AptBtrfsSnapshot.set_default
-    copy rather than rename
-    set parent
-    tests
-
-AptBtrfsSnapshot.create_root_snapshot
-    pickle changes
-    revamp tests
-    
-AptHistoryLog.consolidate
-    function to consolidate install/upgrade/purge/remove info from all 
-    AptHistoryEntry's
+   
+ 1. parent links
+        -testing
+            -copy test/data/root2 and work on that
+        -set_default snapshot again rather than rename
+ 2. history consolidation
+        -sort by date
+        -consolidation
+ 3. pickle
+        -in create_
+ 4. tree view
+        -in set_default
+ 5. ?rollback n
+        a nice touch

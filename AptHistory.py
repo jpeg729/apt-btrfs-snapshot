@@ -73,17 +73,19 @@ class AptHistoryLog(list):
                  after = None):
         super(AptHistoryLog, self).__init__()
         
-        if isinstance(before, str):
+        if isinstance(before, basestring):
             before = datetime.strptime(before.replace("  ", "_"), 
                                        "%Y-%m-%d_%H:%M:%S")
         self.before = before
         
-        if isinstance(after, str):
+        if isinstance(after, basestring):
             after = datetime.strptime(after.replace("  ", "_"), 
-                                      "%Y-%m-%d  %H:%M:%S")
+                                      "%Y-%m-%d_%H:%M:%S")
         if after is None:
             after = before - timedelta(30)
         self.after = after
+        
+        print(before, after)
 
         try:
             logfile = os.path.join(location, "history.log")

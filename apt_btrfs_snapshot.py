@@ -169,16 +169,14 @@ class AptBtrfsSnapshot(object):
     def create_btrfs_root_snapshot(self, root="@"):
         mp = self.mount_btrfs_root_volume()
         # find changes
-        # TODO pickle them and put them in the changes file
         parent_file = os.path.join(mp, root, "etc", "apt-btrfs-parent")
         changes_file = os.path.join(mp, root, "etc", "apt-btrfs-changes")
         if os.path.exists(parent_file):
             date_parent = os.readlink(parent_file)[20:]
         else:
             date_parent = None
-            debug("no date")
         apt_history = AptHistoryLog(after = date_parent)
-        debug(apt_history)
+        # TODO correct this
         pickle.dump(apt_history, open("testfile", "wb"))
         # make snapshot
         snap_id = self.SNAP_PREFIX + self._get_now_str()

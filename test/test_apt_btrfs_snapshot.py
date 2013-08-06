@@ -10,6 +10,7 @@ import os
 import sys
 import unittest
 import datetime
+import shutil
 
 sys.path.insert(0, "..")
 sys.path.insert(0, ".")
@@ -60,14 +61,19 @@ class TestFstab(unittest.TestCase):
         self.assertTrue(apt_btrfs.commands.umount.called)
         self.assertFalse(os.path.exists(mp))
 
-    @unittest.expectedFailure
+    #@unittest.expectedFailure
     @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.mount_btrfs_root_volume')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.umount_btrfs_root_volume')
     def test_btrfs_create_snapshot(self, mock_umount, mock_mount, 
             mock_commands):
         # setup mock
-        mock_mount.return_value = os.path.join(self.testdir, "data", "root")
+        new_root = os.path.join(self.testdir, "data", "root3")
+        if os.path.exists(new_root):
+            shutil.rmtree(new_root)
+        shutil.copytree(os.path.join(self.testdir, "data", "root2"),
+            new_root, symlinks=True)
+        mock_mount.return_value = new_root
         mock_umount.return_value = True
         mock_commands.btrfs_subvolume_snapshot.return_value = True
         # do it
@@ -81,6 +87,7 @@ class TestFstab(unittest.TestCase):
         self.assertTrue(len(args), 2)
         self.assertTrue(args[0].endswith("@"))
         self.assertTrue("@apt-snapshot-" in args[1])
+        shutil.rmtree(new_root)
 
     @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.mount_btrfs_root_volume')
@@ -91,8 +98,6 @@ class TestFstab(unittest.TestCase):
         mock_mount.return_value = os.path.join(self.testdir, "data", "root")
         mock_umount.return_value = True
         mock_commands.btrfs_delete_snapshot.return_value = True
-        mock_commands.mount.return_value = True
-        mock_commands.umount.return_value = True
         # do it
         apt_btrfs = AptBtrfsSnapshot(
             fstab=os.path.join(self.testdir, "data", "fstab"))
