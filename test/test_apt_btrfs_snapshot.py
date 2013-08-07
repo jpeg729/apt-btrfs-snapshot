@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from __future__ import print_function, unicode_literals
+
 try:
     from StringIO import StringIO
     StringIO  # pyflakes
@@ -11,13 +13,21 @@ import sys
 import unittest
 import datetime
 import shutil
+from time import sleep
+#import testfixtures
 
 sys.path.insert(0, "..")
 sys.path.insert(0, ".")
 from apt_btrfs_snapshot import (
     AptBtrfsSnapshot,
-    AptBtrfsRootWithNoatimeError,
+    LowLevelCommands,
 )
+import types
+
+
+def debug(*args):
+    print(*args)
+    return True
 
 
 class TestFstab(unittest.TestCase):
@@ -61,33 +71,100 @@ class TestFstab(unittest.TestCase):
         self.assertTrue(apt_btrfs.commands.umount.called)
         self.assertFalse(os.path.exists(mp))
 
-    #@unittest.expectedFailure
     @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.mount_btrfs_root_volume')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.umount_btrfs_root_volume')
     def test_btrfs_create_snapshot(self, mock_umount, mock_mount, 
             mock_commands):
+        # make a copy of a model btrfs subvol tree
+        model_root = os.path.join(self.testdir, "data", "model_root")
+        copy_of_model_root = os.path.join(self.testdir, "data", "root3")
+        if os.path.exists(copy_of_model_root):
+            shutil.rmtree(copy_of_model_root)
+        shutil.copytree(model_root, copy_of_model_root, symlinks=True)
         # setup mock
-        new_root = os.path.join(self.testdir, "data", "root3")
-        if os.path.exists(new_root):
-            shutil.rmtree(new_root)
-        shutil.copytree(os.path.join(self.testdir, "data", "root2"),
-            new_root, symlinks=True)
-        mock_mount.return_value = new_root
+        mock_mount.return_value = copy_of_model_root
         mock_umount.return_value = True
-        mock_commands.btrfs_subvolume_snapshot.return_value = True
-        # do it
+        # setup snapshot class
         apt_btrfs = AptBtrfsSnapshot(
             fstab=os.path.join(self.testdir, "data", "fstab"))
+        # hack to replace low level snapshot command with a working copy func
+        # that reports back on its working
+        self.new_parent = None
+        self.args = []
+        def mock_snapshot(source, dest):
+            shutil.copytree(source, dest, symlinks=True)
+            self.new_parent = os.path.split(dest)
+            self.args = source, dest
+            return True
+        apt_btrfs.commands.btrfs_subvolume_snapshot = mock_snapshot
+        # use it
         res = apt_btrfs.create_btrfs_root_snapshot()
         # check results
         self.assertTrue(res)
-        self.assertTrue(apt_btrfs.commands.btrfs_subvolume_snapshot.called)
-        (args, kwargs) = apt_btrfs.commands.btrfs_subvolume_snapshot.call_args
-        self.assertTrue(len(args), 2)
-        self.assertTrue(args[0].endswith("@"))
-        self.assertTrue("@apt-snapshot-" in args[1])
-        shutil.rmtree(new_root)
+        self.assertTrue(os.path.exists(os.path.join(*self.new_parent)))
+        parent_file = os.path.join(copy_of_model_root, "@", "etc", 
+            "apt-btrfs-parent")
+        self.assertEqual(os.readlink(parent_file), 
+            "../../%s" % self.new_parent[1])
+        self.assertTrue(len(self.args), 2)
+        self.assertTrue(self.args[0].endswith("@"))
+        self.assertTrue("@apt-snapshot-" in self.args[1])
+        #shutil.rmtree(copy_of_model_root)
+
+    @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
+    @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.mount_btrfs_root_volume')
+    @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.umount_btrfs_root_volume')
+    def test_btrfs_set_default(self, mock_umount, mock_mount, 
+            mock_commands):
+        # make a copy of a model btrfs subvol tree
+        model_root = os.path.join(self.testdir, "data", "model_root")
+        copy_of_model_root = os.path.join(self.testdir, "data", "root3")
+        if os.path.exists(copy_of_model_root):
+            shutil.rmtree(copy_of_model_root)
+        shutil.copytree(model_root, copy_of_model_root, symlinks=True)
+        # setup mock
+        mock_mount.return_value = copy_of_model_root
+        mock_umount.return_value = True
+        # setup snapshot class
+        apt_btrfs = AptBtrfsSnapshot(
+            fstab=os.path.join(self.testdir, "data", "fstab"))
+        # hack to replace low level snapshot command with a working copy func
+        # that reports back on its working
+        old_listdir = os.listdir(copy_of_model_root)
+        self.new_parent = None
+        self.args = []
+        def mock_snapshot(source, dest):
+            shutil.copytree(source, dest, symlinks=True)
+            if source == "@":
+                self.backup = os.path.split(dest)
+            else:
+                self.new_parent = os.path.split(source)
+            self.args = source, dest
+            return True
+        apt_btrfs.commands.btrfs_subvolume_snapshot = mock_snapshot
+        # use it
+        res = apt_btrfs.set_default("@apt-snapshot-2013-08-01_19:53:16")
+        # check results
+        self.assertTrue(res)
+        # check for backup existance (hard) and its parent (easy)
+        new_listdir = os.listdir(copy_of_model_root)
+        for i in new_listdir:
+            if not i in old_listdir:
+                parent_file = os.path.join(copy_of_model_root, i, "etc", 
+                    "apt-btrfs-parent")
+                self.assertEqual(os.readlink(parent_file), 
+                    "../../@apt-snapshot-2013-08-06_13:26:30")
+        self.assertTrue(os.path.exists(os.path.join(copy_of_model_root, 
+            "@apt-snapshot-2013-08-01_19:53:16")))
+        parent_file = os.path.join(copy_of_model_root, "@", "etc", 
+            "apt-btrfs-parent")
+        self.assertEqual(os.readlink(parent_file), 
+            "../../@apt-snapshot-2013-08-01_19:53:16")
+        self.assertTrue(len(self.args), 2)
+        self.assertTrue(self.args[1].endswith("@"))
+        self.assertTrue("@apt-snapshot-" in self.args[0])
+        #shutil.rmtree(copy_of_model_root)
 
     @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.mount_btrfs_root_volume')

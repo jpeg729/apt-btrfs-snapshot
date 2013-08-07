@@ -1,8 +1,7 @@
    
- 1. parent links
-        -testing
-            -copy test/data/root2 and work on that
-        -set_default snapshot again rather than rename
+ 1. set_default
+        -snapshot rather than rename
+        -create parent link
  2. history consolidation
         -sort by date
         -consolidation

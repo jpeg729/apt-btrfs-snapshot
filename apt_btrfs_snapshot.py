@@ -40,10 +40,6 @@ class AptBtrfsNotSupportedError(AptBtrfsSnapshotError):
     pass
 
 
-class AptBtrfsRootWithNoatimeError(AptBtrfsSnapshotError):
-    pass
-
-
 class FstabEntry(object):
     """ a single fstab entry line """
     @classmethod
@@ -256,8 +252,13 @@ class AptBtrfsSnapshot(object):
                 os.path.isdir(new_root) and
                 snapshot_name.startswith(self.SNAP_PREFIX)):
             default_root = os.path.join(mp, "@")
-            backup = os.path.join(mp, self.BACKUP_PREFIX + self._get_now_str())
+            # TODO find changes and write them
+            # rename @ to make backup
+            backup = os.path.join(mp, self.SNAP_PREFIX + self._get_now_str())
             os.rename(default_root, backup)
+            # snapshot snapshot_name to @
+            # set parent
+            # delete changes file
             os.rename(new_root, default_root)
             print("Default changed to %s, please reboot for changes to take "
                   "effect." % snapshot_name)

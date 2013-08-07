@@ -84,8 +84,6 @@ class AptHistoryLog(list):
         if after is None:
             after = before - timedelta(30)
         self.after = after
-        
-        print(before, after)
 
         try:
             logfile = os.path.join(location, "history.log")
