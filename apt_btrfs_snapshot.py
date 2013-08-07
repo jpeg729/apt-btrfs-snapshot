@@ -162,11 +162,11 @@ class AptBtrfsSnapshot(object):
         return datetime.datetime.now().replace(microsecond=0).isoformat(
             str('_'))
 
-    def create_btrfs_root_snapshot(self, root="@"):
+    def create_btrfs_root_snapshot(self):
         mp = self.mount_btrfs_root_volume()
         # find changes
-        parent_file = os.path.join(mp, root, "etc", "apt-btrfs-parent")
-        changes_file = os.path.join(mp, root, "etc", "apt-btrfs-changes")
+        parent_file = os.path.join(mp, "@", "etc", "apt-btrfs-parent")
+        changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
         if os.path.exists(parent_file):
             date_parent = os.readlink(parent_file)[20:]
         else:
@@ -177,7 +177,7 @@ class AptBtrfsSnapshot(object):
         # make snapshot
         snap_id = self.SNAP_PREFIX + self._get_now_str()
         res = self.commands.btrfs_subvolume_snapshot(
-            os.path.join(mp, root),
+            os.path.join(mp, "@"),
             os.path.join(mp, snap_id))
         # manage @/etc/apt-btrfs files
         if os.path.exists(parent_file):
@@ -244,7 +244,7 @@ class AptBtrfsSnapshot(object):
         res = self.set_default(snapshot_name)
         return res
 
-    def set_default(self, snapshot_name, backup=True):
+    def set_default(self, snapshot_name):
         """ set new default """
         mp = self.mount_btrfs_root_volume()
         new_root = os.path.join(mp, snapshot_name)
@@ -252,14 +252,27 @@ class AptBtrfsSnapshot(object):
                 os.path.isdir(new_root) and
                 snapshot_name.startswith(self.SNAP_PREFIX)):
             default_root = os.path.join(mp, "@")
-            # TODO find changes and write them
+            staging = os.path.join(mp, "@apt-btrfs-staging")
+            # TODO find apt changes and pickle them
+            # snapshot the requested default so as not to remove it
+            res = self.commands.btrfs_subvolume_snapshot(new_root, staging)
+            if not res:
+                raise Exception("Could not create snapshot")
             # rename @ to make backup
             backup = os.path.join(mp, self.SNAP_PREFIX + self._get_now_str())
             os.rename(default_root, backup)
-            # snapshot snapshot_name to @
-            # set parent
-            # delete changes file
-            os.rename(new_root, default_root)
+            os.rename(staging, default_root)
+            # set parent and clean-up @/etc/apt-btrfs housekeeping files
+            parent_file = os.path.join(mp, "@", "etc", "apt-btrfs-parent")
+            changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
+            if os.path.exists(parent_file):
+                os.remove(parent_file)
+            if os.path.exists(changes_file):
+                os.remove(changes_file)
+            # set root's new parent
+            parent = os.path.join("..", "..", snapshot_name)
+            os.symlink(parent, parent_file)
+            
             print("Default changed to %s, please reboot for changes to take "
                   "effect." % snapshot_name)
         else:

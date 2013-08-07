@@ -1,13 +1,45 @@
+Roadmap in order of planned implementation
    
- 1. set_default
-        -snapshot rather than rename
-        -create parent link
- 2. history consolidation
-        -sort by date
-        -consolidation
- 3. pickle
-        -in create_
- 4. tree view
-        -in set_default
- 5. ?rollback n
-        a nice touch
+ history consolidation
+    -sort by date
+    -consolidation
+    
+ recent apt changes command line option
+    -think of a name for that option
+    -do it
+    
+ pickle
+    -in create_snapshot and set_default
+    -testing
+    
+ list & tree command line options
+    -questions
+    -should list only list ancestors
+    -detailed listing saying how many apt changes
+    -very detailed listing with apt changes in consolidated detail
+    
+ tree view
+    -parse parent tree to find num_children for each
+    - maybe also make a chronological list of ancestors
+    -simple view with just names
+    -detailed view
+    -very detailed view
+    
+ ?rollback n
+    easier set_default
+    
+ ?rename snapshot name
+    would replace the date part of the name
+    
+ tests
+    -mock stdout to hide the Default changed message
+    -refactor out code duplication
+    
+ factor in stuff from Chousuke
+    -snapshot frequency throttling & shell var limiting
+    
+ delete_snapshot 
+    -should correct parent chain and apt change info, unless there is no parent
+    
+ snapshot cleaning
+    -investigate /var/cache use etc.

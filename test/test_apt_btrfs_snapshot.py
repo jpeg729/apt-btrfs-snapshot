@@ -110,13 +110,14 @@ class TestFstab(unittest.TestCase):
         self.assertTrue(len(self.args), 2)
         self.assertTrue(self.args[0].endswith("@"))
         self.assertTrue("@apt-snapshot-" in self.args[1])
-        #shutil.rmtree(copy_of_model_root)
+        shutil.rmtree(copy_of_model_root)
 
     @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.mount_btrfs_root_volume')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.umount_btrfs_root_volume')
     def test_btrfs_set_default(self, mock_umount, mock_mount, 
             mock_commands):
+        # TODO refactor out code duplication with above test
         # make a copy of a model btrfs subvol tree
         model_root = os.path.join(self.testdir, "data", "model_root")
         copy_of_model_root = os.path.join(self.testdir, "data", "root3")
@@ -137,7 +138,7 @@ class TestFstab(unittest.TestCase):
         def mock_snapshot(source, dest):
             shutil.copytree(source, dest, symlinks=True)
             if source == "@":
-                self.backup = os.path.split(dest)
+                self.new_parent = os.path.split(dest)
             else:
                 self.new_parent = os.path.split(source)
             self.args = source, dest
@@ -162,9 +163,9 @@ class TestFstab(unittest.TestCase):
         self.assertEqual(os.readlink(parent_file), 
             "../../@apt-snapshot-2013-08-01_19:53:16")
         self.assertTrue(len(self.args), 2)
-        self.assertTrue(self.args[1].endswith("@"))
+        self.assertTrue(self.args[1].endswith("@apt-btrfs-staging"))
         self.assertTrue("@apt-snapshot-" in self.args[0])
-        #shutil.rmtree(copy_of_model_root)
+        shutil.rmtree(copy_of_model_root)
 
     @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
     @mock.patch('apt_btrfs_snapshot.AptBtrfsSnapshot.mount_btrfs_root_volume')
