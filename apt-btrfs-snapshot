@@ -60,6 +60,11 @@ if __name__ == "__main__":
         "set-default", help=_("Revert to previous snapshot"))
     command.add_argument("snapshot")
     command.set_defaults(command="set-default")
+    # rollback
+    command = subparser.add_parser(
+        "rollback", help=_("Revert to previous snapshot"))
+    command.add_argument("how_many")
+    command.set_defaults(command="set-default")
     # delete
     command = subparser.add_parser(
         "delete", help=_("Delete snapshot"))
@@ -102,17 +107,19 @@ if __name__ == "__main__":
         else:
             print(_("Not supported"))
     elif args.command == "snapshot":
-        res = apt_btrfs.create_btrfs_root_snapshot()
+        res = apt_btrfs.create()
     elif args.command == "list":
-        res = apt_btrfs.print_btrfs_root_snapshots()
+        res = apt_btrfs.list()
     elif args.command == "set-default":
-        res = apt_btrfs.command_set_default(args.snapshot)
+        res = apt_btrfs.set_default(args.snapshot)
+    elif args.command == "rollback":
+        res = apt_btrfs.set_default(args.how_many)
     elif args.command == "delete":
-        res = apt_btrfs.delete_snapshot(args.snapshot)
+        res = apt_btrfs.delete(args.snapshot)
     elif args.command == "list-older-than":
-        res = apt_btrfs.print_btrfs_root_snapshots_older_than(args.time)
+        res = apt_btrfs.list_older_than(args.time)
     elif args.command == "delete-older-than":
-        res = apt_btrfs.clean_btrfs_root_snapshots_older_than(args.time)
+        res = apt_btrfs.delete_older_than(args.time)
     else:
         print(_("ERROR: Unhandled command: '%s'") % args.command)
 

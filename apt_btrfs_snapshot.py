@@ -80,6 +80,36 @@ class Fstab(list):
                     continue
                 self.append(entry)
 
+    def get_supported_btrfs_root_fstab_entry(self):
+        """ return the supported btrfs root FstabEntry or None """
+        for entry in self:
+            if (
+                    entry.mountpoint == "/" and
+                    entry.fstype == "btrfs" and
+                    "subvol=@" in entry.options):
+                return entry
+        return None
+
+    def uuid_for_mountpoint(self, mountpoint, fstab="/etc/fstab"):
+        """ return the device or UUID for the given mountpoint """
+        for entry in self:
+            if entry.mountpoint == mountpoint:
+                return entry.fs_spec
+        return None
+
+
+def supported(fstab="/etc/fstab"):
+    """ verify that the system supports apt btrfs snapshots
+        by checking if the right fs layout is used etc
+    """
+    # check for the helper binary
+    if not os.path.exists("/sbin/btrfs"):
+        return False
+    # check the fstab
+    fstab = Fstab(fstab)
+    entry = fstab.get_supported_btrfs_root_fstab_entry()
+    return entry is not None
+
 
 class LowLevelCommands(object):
     """ lowlevel commands invoked to perform various tasks like
@@ -111,109 +141,134 @@ class AptBtrfsSnapshot(object):
     # backname when changing
     BACKUP_PREFIX = SNAP_PREFIX + "old-root-"
 
-    def __init__(self, fstab="/etc/fstab"):
+    def __init__(self, fstab="/etc/fstab", test_mp=None):
         self.fstab = Fstab(fstab)
         self.commands = LowLevelCommands()
-        self._btrfs_root_mountpoint = None
+        self.parents = None
+        self.children = None
+        # if we haven't been given a testing ground to play in, mount the real
+        # root volume
+        self.test = test_mp is not None
+        self.mp = test_mp
+        if self.mp is None:
+            self.mp = self.mount_btrfs_root_volume()
 
-    def snapshots_supported(self):
-        """ verify that the system supports apt btrfs snapshots
-            by checking if the right fs layout is used etc
-        """
-        # check for the helper binary
-        if not os.path.exists("/sbin/btrfs"):
-            return False
-        # check the fstab
-        entry = self._get_supported_btrfs_root_fstab_entry()
-        return entry is not None
-
-    def _get_supported_btrfs_root_fstab_entry(self):
-        """ return the supported btrfs root FstabEntry or None """
-        for entry in self.fstab:
-            if (
-                    entry.mountpoint == "/" and
-                    entry.fstype == "btrfs" and
-                    "subvol=@" in entry.options):
-                return entry
-        return None
-
-    def _uuid_for_mountpoint(self, mountpoint, fstab="/etc/fstab"):
-        """ return the device or UUID for the given mountpoint """
-        for entry in self.fstab:
-            if entry.mountpoint == mountpoint:
-                return entry.fs_spec
-        return None
+    def __del__(self):
+        """ unmount root volume if necessary """
+        # This will probably not get run if there are cyclic references.
+        # check thoroughly because we get called even if __init__ fails
+        if not self.test and self.mp is not None:
+            self.umount_btrfs_root_volume()
 
     def mount_btrfs_root_volume(self):
-        uuid = self._uuid_for_mountpoint("/")
+        uuid = self.fstab.uuid_for_mountpoint("/")
         mountpoint = tempfile.mkdtemp(prefix="apt-btrfs-snapshot-mp-")
         if not self.commands.mount(uuid, mountpoint):
             return None
-        self._btrfs_root_mountpoint = mountpoint
-        return self._btrfs_root_mountpoint
+        self.mp = mountpoint
+        return self.mp
 
     def umount_btrfs_root_volume(self):
-        res = self.commands.umount(self._btrfs_root_mountpoint)
-        os.rmdir(self._btrfs_root_mountpoint)
-        self._btrfs_root_mountpoint = None
+        res = self.commands.umount(self.mp)
+        os.rmdir(self.mp)
+        self.mp = None
         return res
 
     def _get_now_str(self):
         return datetime.datetime.now().replace(microsecond=0).isoformat(
             str('_'))
 
-    def create_btrfs_root_snapshot(self):
-        mp = self.mount_btrfs_root_volume()
-        # find changes
+    def create(self):
+        mp = self.mp
+        # find apt changes
         parent_file = os.path.join(mp, "@", "etc", "apt-btrfs-parent")
-        changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
         if os.path.exists(parent_file):
-            date_parent = os.readlink(parent_file)[20:]
+            p = 6 + len(self.SNAP_PREFIX)
+            date_parent = os.readlink(parent_file)[p:p + 19]
         else:
             date_parent = None
         apt_history = AptHistoryLog(after = date_parent)
         # TODO correct this
+        changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
         pickle.dump(apt_history, open("testfile", "wb"))
         # make snapshot
         snap_id = self.SNAP_PREFIX + self._get_now_str()
         res = self.commands.btrfs_subvolume_snapshot(
             os.path.join(mp, "@"),
             os.path.join(mp, snap_id))
-        # manage @/etc/apt-btrfs files
-        if os.path.exists(parent_file):
-            os.remove(parent_file)
+        # remove change info
         if os.path.exists(changes_file):
             os.remove(changes_file)
         # set root's new parent
-        parent = os.path.join("..", "..", snap_id)
-        os.symlink(parent, parent_file)
-        # clean-up
-        self.umount_btrfs_root_volume()
+        self._link(snap_id, "@")
         return res
 
-    def get_btrfs_root_snapshots_list(self, older_than=0):
+    def _parse_tree(self):
+        mp = self.mp
+        self.parents = {}
+        self.children = {}
+        snapshots = self.get_btrfs_root_snapshots_list()
+        snapshots.append("@")
+        for snapshot in snapshots:
+            parent_file = os.path.join(mp, snapshot, "etc", "apt-btrfs-parent")
+            try:
+                link_to = os.readlink(parent_file)
+            except OSError:
+                continue
+            path, parent = os.path.split(link_to)
+            self.parents[snapshot] = parent
+            if parent in self.children.keys():
+                self.children[parent].append(snapshot)
+            else:
+                self.children[parent] = [snapshot]
+
+    def _get_parent(self, snapshot):
+        if self.parents is None:
+            self._parse_tree()
+        if snapshot in self.parents.keys():
+            return self.parents[snapshot]
+        return None
+
+    def _get_children(self, snapshot):
+        if self.children is None:
+            self._parse_tree()
+        if snapshot in self.children.keys():
+            return self.children[snapshot]
+        return None
+
+    def _link(self, parent, child):
+        """ sets symlink from child to parent 
+            or deletes it if parent == None 
+        """
+        parent_file = os.path.join(self.mp, child, "etc", "apt-btrfs-parent")
+        # remove parent link from child
+        if os.path.exists(parent_file):
+            os.remove(parent_file)
+        # link to parent
+        if parent is not None:
+            parent_path = os.path.join("..", "..", parent)
+            os.symlink(parent_path, parent_file)
+
+    def get_btrfs_root_snapshots_list(self, older_than=False):
         """ get the list of available snapshot
             If "older_then" is given (in datetime format) it will only include
             snapshots that are older then the given date)
         """
         l = []
-        # if there is no older_than, interpret that as "now"
-        if older_than == 0:
-            older_than = datetime.datetime.now()
-        mp = self.mount_btrfs_root_volume()
+        mp = self.mp
         for e in os.listdir(mp):
             if e.startswith(self.SNAP_PREFIX):
                 d = e[len(self.SNAP_PREFIX):]
                 try:
                     date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")
                 except ValueError:
+                    # have found a named snapshot
                     date = older_than
-                if date < older_than:
+                if older_than == False or date < older_than:
                     l.append(e)
-        self.umount_btrfs_root_volume()
         return l
 
-    def print_btrfs_root_snapshots(self):
+    def list(self):
         print("Available snapshots:")
         print("  \n".join(self.get_btrfs_root_snapshots_list()))
         return True
@@ -225,34 +280,31 @@ class AptBtrfsSnapshot(object):
         days = int(timefmt[:-1])
         return now - datetime.timedelta(days)
 
-    def print_btrfs_root_snapshots_older_than(self, timefmt):
+    def list_older_than(self, timefmt):
         older_than = self._parse_older_than_to_datetime(timefmt)
         print("Available snapshots older than '%s':" % timefmt)
         print("  \n".join(self.get_btrfs_root_snapshots_list(
             older_than=older_than)))
         return True
 
-    def clean_btrfs_root_snapshots_older_than(self, timefmt):
+    def delete_older_than(self, timefmt):
         res = True
         older_than = self._parse_older_than_to_datetime(timefmt)
         for snap in self.get_btrfs_root_snapshots_list(
                 older_than=older_than):
-            res &= self.delete_snapshot(snap)
-        return res
-
-    def command_set_default(self, snapshot_name):
-        res = self.set_default(snapshot_name)
+            res &= self.delete(snap)
         return res
 
     def set_default(self, snapshot_name):
         """ set new default """
-        mp = self.mount_btrfs_root_volume()
+        mp = self.mp
         new_root = os.path.join(mp, snapshot_name)
         if (
                 os.path.isdir(new_root) and
                 snapshot_name.startswith(self.SNAP_PREFIX)):
             default_root = os.path.join(mp, "@")
             staging = os.path.join(mp, "@apt-btrfs-staging")
+            # TODO check whether staging already exists and prompt to remove it
             # TODO find apt changes and pickle them
             # snapshot the requested default so as not to remove it
             res = self.commands.btrfs_subvolume_snapshot(new_root, staging)
@@ -260,18 +312,20 @@ class AptBtrfsSnapshot(object):
                 raise Exception("Could not create snapshot")
             # rename @ to make backup
             backup = os.path.join(mp, self.SNAP_PREFIX + self._get_now_str())
+            # Avoid overwriting last backup if you try again within the same 
+            # second
+            if os.path.exists(backup):
+                time.sleep(1)
+                backup = os.path.join(mp, 
+                    self.SNAP_PREFIX + self._get_now_str())
             os.rename(default_root, backup)
             os.rename(staging, default_root)
             # set parent and clean-up @/etc/apt-btrfs housekeeping files
-            parent_file = os.path.join(mp, "@", "etc", "apt-btrfs-parent")
             changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
-            if os.path.exists(parent_file):
-                os.remove(parent_file)
             if os.path.exists(changes_file):
                 os.remove(changes_file)
             # set root's new parent
-            parent = os.path.join("..", "..", snapshot_name)
-            os.symlink(parent, parent_file)
+            self._link(snapshot_name, "@")
             
             print("Default changed to %s, please reboot for changes to take "
                   "effect." % snapshot_name)
@@ -279,20 +333,32 @@ class AptBtrfsSnapshot(object):
             print("You have selected an invalid snapshot. Please make sure "
                   "that it exists, and that its name starts with "
                   "\"%s\"" % self.SNAP_PREFIX)
-        self.umount_btrfs_root_volume()
         return True
 
-    def delete_snapshot(self, snapshot_name):
-        mp = self.mount_btrfs_root_volume()
+    def rollback(self, how_many=1):
+        debug("rolling back", how_many)
+        back_to = "@"
+        for i in range(how_many):
+            back_to = self._get_parent(back_to)
+        debug("back to", back_to)
+        try:self.set_default(back_to)
+        except: time.sleep(20)
+
+    def delete(self, snapshot_name):
+        mp = self.mp
         to_delete = os.path.join(mp, snapshot_name)
         res = True
         if (
                 os.path.isdir(to_delete) and
                 snapshot_name.startswith(self.SNAP_PREFIX)):
+            # correct parent links
+            parent = self._get_parent(snapshot_name)
+            children = self._get_children(snapshot_name)
+            for child in children:
+                self._link(parent, child)
             res = self.commands.btrfs_delete_snapshot(to_delete)
         else:
             print("You have selected an invalid snapshot. Please make sure "
                   "that it exists, and that its name starts with "
                   "\"%s\"" % self.SNAP_PREFIX)
-        self.umount_btrfs_root_volume()
         return res

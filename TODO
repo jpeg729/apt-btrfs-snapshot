@@ -12,34 +12,23 @@ Roadmap in order of planned implementation
     -in create_snapshot and set_default
     -testing
     
- list & tree command line options
-    -questions
-    -should list only list ancestors
-    -detailed listing saying how many apt changes
-    -very detailed listing with apt changes in consolidated detail
+ delete_snapshot 
+    -should consolidate apt change info, unless there is no parent
     
- tree view
-    -parse parent tree to find num_children for each
-    - maybe also make a chronological list of ancestors
+ list command
+    -list only lists the last few ancestors with consolidated detailed changes
+    -optionally indicate the number of ancestors to list
+    
+ tree view command
     -simple view with just names
-    -detailed view
-    -very detailed view
+    -view with change stats
+    -detailed view with all consolidated changes
     
- ?rollback n
-    easier set_default
-    
- ?rename snapshot name
-    would replace the date part of the name
-    
- tests
-    -mock stdout to hide the Default changed message
-    -refactor out code duplication
+ ?(re)name snapshot
+    would append/replace after the date part of the name
     
  factor in stuff from Chousuke
     -snapshot frequency throttling & shell var limiting
-    
- delete_snapshot 
-    -should correct parent chain and apt change info, unless there is no parent
     
  snapshot cleaning
     -investigate /var/cache use etc.
