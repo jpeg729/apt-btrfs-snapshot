@@ -1,8 +1,14 @@
 Roadmap in order of planned implementation
    
  history consolidation
-    -sort by date
+    -change AptHistoryEntry to store data in dictionaries by default
+    - rename get() method to _parse()
+    - stop __init__ from storing installs, upgrades etc in self
+    - use _parse in __init__
     -consolidation
+ 
+ history ought to read /var/log/dpkg.log to find manually installed pkgs
+    -and /var/log/dpkg.log.1 etc.
     
  recent apt changes command line option
     -think of a name for that option
@@ -31,4 +37,11 @@ Roadmap in order of planned implementation
     -snapshot frequency throttling & shell var limiting
     
  snapshot cleaning
-    -investigate /var/cache use etc.
+    -command line clean [apt|tmp|crash] option
+    -btrfs subvolume find-new @ 143
+ 
+ rollback and setdefault should prompt for a name for the abandoned subvolume
+ 
+ single instance
+    -http://stackoverflow.com/questions/380870/python-single-instance-of-program
+    -3rd answer

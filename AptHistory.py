@@ -34,23 +34,33 @@ class AptHistoryEntry(object):
     def __init__(self, start, end, installs, upgrades, removes, purges):
         self.start = start
         self.end = end
-        self.installs = installs
-        self.upgrades = upgrades
-        self.removes = removes
-        self.purges = purges
+        self.i = self._parse(installs)
+        self.u = self._parse(upgrades)
+        self.r = self._parse(removes)
+        self.p = self._parse(purges)
 
-    def get(self, op):
+    def _parse(self, pkgs):
         """ Parses the op pkg list and returns a pair of dictionaries
             The first contains the non automatic changes, the second contains
             the others. key = pkg_name, value = version_info.
         """
-        pkgs = self.__dict__[op]
+        if not isinstance(pkgs, basestring):
+            # already in tuple of dicts format
+            return pkgs
+        
         pkgs = pkgs.replace(":%s" % _arch, "")
+        
+        if pkgs == "":
+            return {}, {}
 
         pkg_dict = {}
         auto = {}
-
-        pkg_list = pkgs.split("), ")
+        
+        if ")" in pkgs:
+            pkg_list = pkgs.split("), ")
+        else:
+            pkg_list = [pkgs]
+        
         for i in pkg_list:
             k, v = i.split(" (")
             v = v.strip(")")
@@ -63,13 +73,12 @@ class AptHistoryEntry(object):
 
     def __repr__(self):
         return "<AptHistoryEntry '%s' '%s' '%s' '%s' '%s' '%s'>" % (
-            self.start, self.end, self.installs,
-            self.upgrades, self.removes, self.purges)
+            self.start, self.end, self.i, self.u, self.r, self.p)
 
 
 class AptHistoryLog(list):
     """ list of AptHistoryEntry's reflecting the apt history logs """
-    def __init__(self, location="/var/log/apt/", before = datetime.now(), 
+    def __init__(self, location="/var/log/", before = datetime.now(), 
                  after = None):
         super(AptHistoryLog, self).__init__()
         
@@ -82,12 +91,12 @@ class AptHistoryLog(list):
             after = datetime.strptime(after.replace("  ", "_"), 
                                       "%Y-%m-%d_%H:%M:%S")
         if after is None:
-            after = before - timedelta(30)
+            after = before - timedelta(365)
         self.after = after
 
         try:
-            logfile = os.path.join(location, "history.log")
-            self._parse_file(open(logfile))
+            logfile = os.path.join(location, "apt", "history.log")
+            self._parse_apt_logfile(open(logfile))
         except IOError:
             pass
 
@@ -95,14 +104,21 @@ class AptHistoryLog(list):
         for i in range(1, 10):
             length = len(self)
             try:
-                logfile = os.path.join(location, "history.log.%d.gz" % i)
-                self._parse_file(gzip.GzipFile(logfile))
+                logfile = os.path.join(location, "apt", "history.log.%d.gz" % i)
+                self._parse_apt_logfile(gzip.GzipFile(logfile))
             except IOError:
                 pass
             if len(self) == length:
                 break
+        
+        # TODO read in /var/log/dpkg.log(.i) and see if that adds anything
+        # pb: it only really makes sense to compare it with the consolidated
+        # version
+        
+        # sort thyself
+        self.sort(key = lambda x: x.start)
 
-    def _parse_file(self, log_file):
+    def _parse_apt_logfile(self, log_file):
         """ Read file object in and parse the entries """
         start, end, installs, upgrades, removes, purges = "", "", "", "", "", ""
         for line in (l.strip().decode("utf-8") for l in log_file):
@@ -133,10 +149,20 @@ class AptHistoryLog(list):
                     self.append(entry)
                 start, end = None, None
                 installs, upgrades, removes, purges = "", "", "", ""
-                
+
+    def consolidate(self):
+        """ combines the info in all AptHistoryEntry's into one """
+        start = self[0].start
+        end = self[-1].end
+        # installs, auto-installs, upgrades, removes, autoremoves, purges
+        i = ({}, {})
+        return AptHistoryEntry(start, end, i, i, i, i)
+
 
 if __name__ == "__main__":
     log = AptHistoryLog(location="test/data")
+    print(len(log))
     for e in log:
         print("Start", e.start)
-        print(e.installs)
+        print(e)
+

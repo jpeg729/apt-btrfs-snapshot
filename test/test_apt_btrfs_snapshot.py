@@ -222,7 +222,8 @@ class TestSnapshotting(unittest.TestCase):
         self.assertEqual(os.readlink(parent_file), 
             "../../@apt-snapshot-2013-07-26_14:50:53")
         parent_file = os.path.join(self.model_root, 
-            "@apt-snapshot-2013-07-31_12:53:16-raring-to-go", "etc", "apt-btrfs-parent")
+            "@apt-snapshot-2013-07-31_12:53:16-raring-to-go", 
+            "etc", "apt-btrfs-parent")
         self.assertEqual(os.readlink(parent_file), 
             "../../@apt-snapshot-2013-07-26_14:50:53")
 
@@ -230,7 +231,8 @@ class TestSnapshotting(unittest.TestCase):
         child = "@apt-snapshot-2013-07-31_12:53:16-raring-to-go"
         self.apt_btrfs._link(None, child)
         parent_file = os.path.join(self.model_root, 
-            "@apt-snapshot-2013-07-31_12:53:16-raring-to-go", "etc", "apt-btrfs-parent")
+            "@apt-snapshot-2013-07-31_12:53:16-raring-to-go", 
+            "etc", "apt-btrfs-parent")
         self.assertFalse(os.path.exists(parent_file))
         self.apt_btrfs._link("@apt-snapshot-2013-07-26_14:50:53", child)
         self.assertEqual(os.readlink(parent_file), 
