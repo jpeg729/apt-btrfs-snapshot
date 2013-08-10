@@ -245,6 +245,7 @@ class AptBtrfsSnapshot(object):
             try:
                 link_to = os.readlink(parent_file)
             except OSError:
+                # TODO stick it in some list
                 continue
             path, parent = os.path.split(link_to)
             self.parents[snapshot] = parent

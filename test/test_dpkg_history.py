@@ -133,6 +133,8 @@ class TestDpkgHistory(unittest.TestCase):
     def test_add(self):
         log1 = DpkgHistory(do_parse=False)
         log2 = DpkgHistory(do_parse=False)
+        log1.since = 1
+        log2.since = 2
         log1['install'] = [('one', '1'), ('two', '2'), ('three', '3')]
         log1['upgrade'] = [('four', '4, 4.1'), ('five', '5')]
         log1['remove'] = [('six', '6'), ('seven', '7')]
@@ -146,6 +148,19 @@ class TestDpkgHistory(unittest.TestCase):
             ('six', '6, 6.1')])
         self.assertEqual(log3['remove'], [('five', '5'), 
             ('seven', '7')])
+        self.assertEqual(log3['purge'], log3['auto-install'], [])
+        # Now the other way round, the upgrade version numbers are
+        # not all that logical, but it would probably be better to 
+        # output something reasonable rather than throw an error.
+        # logs are not infallible.
+        log1.since = 2
+        log2.since = 1
+        log3 = log1 + log2
+        self.assertEqual(log3['install'], [('eight', '8'), 
+            ('three', '3')])
+        self.assertEqual(log3['upgrade'], [('four', u'4.1, 4.1'),
+            ('one', u'1, 1')])
+        self.assertEqual(log3['remove'], [('seven', '7')])
         self.assertEqual(log3['purge'], log3['auto-install'], [])
 
 if __name__ == "__main__":
