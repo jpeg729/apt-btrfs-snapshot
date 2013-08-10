@@ -33,6 +33,16 @@ from gettext import gettext as _
 from apt_btrfs_snapshot import AptBtrfsSnapshot, supported
 
 
+class ReportCalls(object):
+    def make_skeleton(self, attr):
+        def skeleton(*args, **kwargs):
+            print("Called %s with args %s and kwargs %s" % (attr,  args, kwargs))
+        return skeleton
+    
+    def __getattr__(self, attr):
+        return self.make_skeleton(attr)
+        
+
 if __name__ == "__main__":
 
     gettext.bindtextdomain("apt-btrfs-snapshot")
@@ -43,7 +53,7 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true", default=False,
                         help="enable debug output")
     parser.add_argument("--test", action="store_true", default=False,
-                        help="enable debug output")
+                        help="just shows python call with arguments")
     subparser = parser.add_subparsers(title="Commands")
     # supported
     command = subparser.add_parser(
@@ -54,19 +64,32 @@ if __name__ == "__main__":
         "list", help=_("List the last n snapshots, default=10"))
     command.add_argument("how_many", nargs='?', default=10, type=int)
     command.set_defaults(command="list")
+    # status
+    command = subparser.add_parser(
+        "status", help=_("Get current state"))
+    command.set_defaults(command="status")
     # snapshot
     command = subparser.add_parser(
         "snapshot", help=_("Create a new snapshot"))
+    command.add_argument("tag", nargs='?', default="")
     command.set_defaults(command="snapshot")
+    # tag
+    command = subparser.add_parser(
+        "tag", help=_("Set/change the tag of a snapshot"))
+    command.add_argument("snapshot")
+    command.add_argument("tag")
+    command.set_defaults(command="tag")
     # set-default
     command = subparser.add_parser(
         "set-default", help=_("Revert to snapshot of your choice"))
     command.add_argument("snapshot")
+    command.add_argument("tag", nargs='?', default="")
     command.set_defaults(command="set-default")
     # rollback
     command = subparser.add_parser(
         "rollback", help=_("Rollback n snapshots, default=1"))
     command.add_argument("how_many", nargs='?', default=1, type=int)
+    command.add_argument("tag", nargs='?', default="", type=str)
     command.set_defaults(command="rollback")
     # delete
     command = subparser.add_parser(
@@ -92,10 +115,6 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
-    
-    if args.test:
-        var_location = "test/data/var"
-        model_root = "test/data/model_root"
 
     if args.command == "supported":
         res = supported()
@@ -112,16 +131,24 @@ if __name__ == "__main__":
         print(_("Sorry, your system lacks support for the snapshot feature"))
         sys.exit(1)
 
-    apt_btrfs = AptBtrfsSnapshot()
+    if args.test:
+        apt_btrfs = ReportCalls()
+    else:
+        apt_btrfs = AptBtrfsSnapshot()
+    
     res = False
     if args.command == "snapshot":
-        res = apt_btrfs.snapshot()
+        res = apt_btrfs.snapshot(args.tag)
+    elif args.command == "tag":
+        res = apt_btrfs.tag(args.snapshot, args.tag)
     elif args.command == "list":
-        res = apt_btrfs.list()
+        res = apt_btrfs.list(args.how_many)
+    elif args.command == "status":
+        res = apt_btrfs.status(args.how_many)
     elif args.command == "set-default":
-        res = apt_btrfs.set_default(args.snapshot)
+        res = apt_btrfs.set_default(args.snapshot, args.tag)
     elif args.command == "rollback":
-        res = apt_btrfs.set_default(args.how_many)
+        res = apt_btrfs.rollback(args.how_many, args.tag)
     elif args.command == "delete":
         res = apt_btrfs.delete(args.snapshot)
     elif args.command == "list-older-than":

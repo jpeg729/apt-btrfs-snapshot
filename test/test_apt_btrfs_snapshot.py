@@ -14,7 +14,6 @@ import unittest
 import datetime
 import shutil
 import time
-#import testfixtures
 
 sys.path.insert(0, "..")
 sys.path.insert(0, ".")
@@ -173,7 +172,7 @@ class TestSnapshotting(unittest.TestCase):
         self.assertIn("@", self.apt_btrfs.parents.keys())
 
     def test_btrfs_create_snapshot(self):
-        res = self.apt_btrfs.create()
+        res = self.apt_btrfs.snapshot()
         # check results
         self.assertTrue(res)
         self.assertTrue(os.path.exists(os.path.join(*self.new_parent)))
@@ -238,21 +237,30 @@ class TestSnapshotting(unittest.TestCase):
         self.assertEqual(os.readlink(parent_file), 
             "../../@apt-snapshot-2013-07-26_14:50:53")
 
-    def test_rollback_one(self):
+    @mock.patch('sys.stdout')
+    def test_rollback_one(self, mock_stdout):
+        mock_stdout.side_effect = StringIO()
         self.apt_btrfs.rollback()
         parent_file = os.path.join(self.model_root, 
             "@", "etc", "apt-btrfs-parent")
         self.assertEqual(os.readlink(parent_file), 
             "../../@apt-snapshot-2013-08-06_13:26:30")
     # if desired these two tests can be put in the same function, but you will
-    # incur a 1s delay.
-    def test_rollback_five(self):
+    # incur a 1s delay designed to avoid trying to create two snapshots of the 
+    # same name
+    @mock.patch('sys.stdout')
+    def test_rollback_five(self, mock_stdout):
+        mock_stdout.side_effect = StringIO()
         self.apt_btrfs.rollback(5)
         parent_file = os.path.join(self.model_root, 
             "@", "etc", "apt-btrfs-parent")
         self.assertEqual(os.readlink(parent_file), 
             "../../@apt-snapshot-2013-08-01_19:53:16")
 
+    def test_status(self):
+        date, history = self.apt_btrfs._get_status()
+        self.apt_btrfs.status()
+        self.assertFalse(True)
 
 
 if __name__ == "__main__":

@@ -24,8 +24,9 @@ import subprocess
 import sys
 import time
 import tempfile
-from AptHistory import AptHistoryLog
+from dpkg_history import DpkgHistory
 import cPickle as pickle
+import textwrap
 
 
 def debug(*args):
@@ -141,7 +142,7 @@ class AptBtrfsSnapshot(object):
     # backname when changing
     BACKUP_PREFIX = SNAP_PREFIX + "old-root-"
 
-    def __init__(self, fstab="/etc/fstab", test_mp=None, model_root=None):
+    def __init__(self, fstab="/etc/fstab", test_mp=None):
         self.fstab = Fstab(fstab)
         self.commands = LowLevelCommands()
         self.parents = None
@@ -178,27 +179,57 @@ class AptBtrfsSnapshot(object):
         return datetime.datetime.now().replace(microsecond=0).isoformat(
             str('_'))
 
-    def snapshot(self):
+    def _get_status(self):
         mp = self.mp
-        # find apt changes
+        # find package changes
         parent_file = os.path.join(mp, "@", "etc", "apt-btrfs-parent")
         if os.path.exists(parent_file):
             p = 6 + len(self.SNAP_PREFIX)
-            date_parent = os.readlink(parent_file)[p:p + 19]
+            date_parent = os.readlink(parent_file)[p:p + 19].replace("_", " ")
         else:
             date_parent = None
-        apt_history = AptHistoryLog(after = date_parent)
-        # TODO correct this
-        changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
-        pickle.dump(apt_history, open("testfile", "wb"))
+        if self.test:
+            history = DpkgHistory(since = date_parent, 
+                var_location = "data/var")
+        else:
+            history = DpkgHistory(since = date_parent)
+        return date_parent, history
+
+    def status(self):
+        date_parent, history = self._get_status()
+        if date_parent is None:
+            print("Cannot find a previous snapshot. The dpkg logs mention:")
+        else:
+            print("Since the previous snapshot taken on %s, there have been:" % 
+                date_parent)
+        for op in ("install", "auto-install", "upgrade", "remove", "purge"):
+            if len(history[op]) > 0:
+                print("%d %ss:" % (len(history[op]), op))
+                packages = []
+                for p, v in history[op]:
+                    packages.append(p)
+                packages = ", ".join(packages)
+                if sys.stdout.isatty():
+                    # if we are in a terminal, wrap text to match its width
+                    rows, columns = os.popen('stty size', 'r').read().split()
+                    packages = textwrap.fill(packages, width=int(columns), 
+                        initial_indent='  ', subsequent_indent='  ')
+                print(packages)
+
+    def snapshot(self):
+        mp = self.mp
+        
         # make snapshot
         snap_id = self.SNAP_PREFIX + self._get_now_str()
         res = self.commands.btrfs_subvolume_snapshot(
             os.path.join(mp, "@"),
             os.path.join(mp, snap_id))
-        # remove change info
-        if os.path.exists(changes_file):
-            os.remove(changes_file)
+        
+        # find and store dpkg changes
+        date, history = self._get_status()
+        changes_file = os.path.join(mp, snap_id, "etc", "apt-btrfs-changes")
+        pickle.dump(history, open(changes_file, "wb"))
+        
         # set root's new parent
         self._link(snap_id, "@")
         return res
