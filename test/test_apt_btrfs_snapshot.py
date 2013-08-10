@@ -14,6 +14,8 @@ import unittest
 import datetime
 import shutil
 import time
+import pickle
+import types
 
 sys.path.insert(0, "..")
 sys.path.insert(0, ".")
@@ -23,7 +25,6 @@ from apt_btrfs_snapshot import (
     LowLevelCommands,
     supported, 
 )
-import types
 
 
 def debug(*args):
@@ -166,8 +167,7 @@ class TestSnapshotting(unittest.TestCase):
 
     def test_get_parent(self):
         res = self.apt_btrfs._get_parent("@apt-snapshot-2013-07-31_00:00:04")
-        self.assertEqual(res, "@apt-snapshot-2013-07-26_14:50:53")
-        self.assertEqual(res, 
+        self.assertEqual(res, "@apt-snapshot-2013-07-26_14:50:53", 
             self.apt_btrfs.parents["@apt-snapshot-2013-07-31_00:00:04"])
         self.assertIn("@", self.apt_btrfs.parents.keys())
 
@@ -183,6 +183,11 @@ class TestSnapshotting(unittest.TestCase):
         self.assertTrue(len(self.args), 2)
         self.assertTrue(self.args[0].endswith("@"))
         self.assertTrue("@apt-snapshot-" in self.args[1])
+        changes_file = os.path.join(self.model_root, self.new_parent[1], "etc", 
+            "apt-btrfs-changes")
+        self.assertTrue(os.path.exists(changes_file))
+        history = pickle.load(open(changes_file, "rb"))
+        self.assertEqual(len(history['install']), 10)
 
     @mock.patch('sys.stdout')
     def test_btrfs_set_default(self, mock_stdout):
@@ -257,10 +262,13 @@ class TestSnapshotting(unittest.TestCase):
         self.assertEqual(os.readlink(parent_file), 
             "../../@apt-snapshot-2013-08-01_19:53:16")
 
-    def test_status(self):
+    def test_get_status(self):
         date, history = self.apt_btrfs._get_status()
-        self.apt_btrfs.status()
-        self.assertFalse(True)
+        self.assertEqual(len(history['install']), 10)
+        self.assertEqual(len(history['auto-install']), 7)
+        self.assertEqual(len(history['remove']), 
+            len(history['purge']), 0)
+        self.assertEqual(len(history['upgrade']), 0)      
 
 
 if __name__ == "__main__":

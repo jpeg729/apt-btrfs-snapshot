@@ -1,9 +1,10 @@
 Roadmap in order of planned implementation
    
  pickle
-    -in create_snapshot
     -set_default
-    -testing
+    
+ delete_snapshot
+    -should consolidate package change info between self and child foreach child
     
  DpkgHistory
     -since date is usually known except when there is no parent link
@@ -11,10 +12,8 @@ Roadmap in order of planned implementation
     - or see if there are other snapshots without parent links?
     - skipping is easier
  
- delete_snapshot
-    -should consolidate package change info, unless there is no parent
-    
- apt-btrfs._parse should take into account snapshots with no info
+ apt-btrfs._parse should? take into account snapshots with no info
+    -only to ease the transition
  
  list command
     -list only lists the last few ancestors with package changes
