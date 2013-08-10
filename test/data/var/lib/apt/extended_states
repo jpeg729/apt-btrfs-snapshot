@@ -2154,3 +2154,7 @@ Package: lib32z1
 Architecture: amd64
 Auto-Installed: 1
 
+Package: lynx-cur
+Architecture: amd64
+Auto-Installed: 1
+

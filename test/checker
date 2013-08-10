@@ -1,0 +1,9 @@
+cat pud | grep "<" | cut -d' ' -f2 | while read line; do
+    echo "hi $line"
+    cat longer_dpkg.log | grep " $line " | grep -v 'status' | grep -v 'configure'
+done
+exit 0
+#| while read p; do
+    echo $p
+    cat longer_dpkg.log | grep " $line " | grep -v 'status' | grep -v 'configure'
+done 

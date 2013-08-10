@@ -3757,3 +3757,70 @@
 2013-08-08 18:49:47 trigproc libc-bin 2.15-0ubuntu10.4 <aucun>
 2013-08-08 18:49:47 status half-configured libc-bin 2.15-0ubuntu10.4
 2013-08-08 18:49:59 status installed libc-bin 2.15-0ubuntu10.4
+2013-08-09 21:04:40 startup archives unpack
+2013-08-09 21:04:45 install lynx-cur <aucun> 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:45 status half-installed lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:45 status triggers-pending doc-base 0.10.3
+2013-08-09 21:04:45 status half-installed lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:46 status triggers-pending man-db 2.6.1-2ubuntu1
+2013-08-09 21:04:46 status half-installed lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:49 status unpacked lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:49 status unpacked lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:49 install lynx <aucun> 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:49 status half-installed lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:50 status unpacked lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:50 status unpacked lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:50 trigproc doc-base 0.10.3 0.10.3
+2013-08-09 21:04:50 status half-configured doc-base 0.10.3
+2013-08-09 21:04:52 status installed doc-base 0.10.3
+2013-08-09 21:04:52 trigproc man-db 2.6.1-2ubuntu1 2.6.1-2ubuntu1
+2013-08-09 21:04:52 status half-configured man-db 2.6.1-2ubuntu1
+2013-08-09 21:04:54 status installed man-db 2.6.1-2ubuntu1
+2013-08-09 21:04:55 startup packages configure
+2013-08-09 21:04:55 configure lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1 <aucun>
+2013-08-09 21:04:55 status unpacked lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:55 status unpacked lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:55 status unpacked lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:55 status half-configured lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:56 status installed lynx-cur 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:56 configure lynx 2.8.8dev.9-2ubuntu0.12.04.1 <aucun>
+2013-08-09 21:04:56 status unpacked lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:56 status half-configured lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:04:57 status installed lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:05:57 startup packages remove
+2013-08-09 21:05:57 status installed lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:05:57 remove lynx 2.8.8dev.9-2ubuntu0.12.04.1 <aucun>
+2013-08-09 21:05:57 status half-configured lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:05:57 status half-installed lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:05:58 status config-files lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:05:58 status config-files lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:05:58 status config-files lynx 2.8.8dev.9-2ubuntu0.12.04.1
+2013-08-09 21:05:58 status not-installed lynx <aucun>
+2013-08-09 21:08:01 startup archives unpack
+2013-08-09 21:08:02 install libnss-db <aucun> 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:08:02 status half-installed libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:08:02 status triggers-pending man-db 2.6.1-2ubuntu1
+2013-08-09 21:08:02 status half-installed libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:08:03 status unpacked libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:08:03 status unpacked libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:08:03 trigproc man-db 2.6.1-2ubuntu1 2.6.1-2ubuntu1
+2013-08-09 21:08:03 status half-configured man-db 2.6.1-2ubuntu1
+2013-08-09 21:08:04 status installed man-db 2.6.1-2ubuntu1
+2013-08-09 21:08:05 startup packages configure
+2013-08-09 21:08:05 configure libnss-db 2.2.3pre1-3.2ubuntu3 <aucun>
+2013-08-09 21:08:05 status unpacked libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:08:05 status unpacked libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:08:05 status half-configured libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:08:05 status installed libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:09:41 startup packages remove
+2013-08-09 21:09:41 status installed libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:09:41 remove libnss-db 2.2.3pre1-3.2ubuntu3 <aucun>
+2013-08-09 21:09:41 status half-configured libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:09:41 status half-installed libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:09:41 status triggers-pending man-db 2.6.1-2ubuntu1
+2013-08-09 21:09:41 status half-installed libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:09:41 status config-files libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:09:41 status config-files libnss-db 2.2.3pre1-3.2ubuntu3
+2013-08-09 21:09:42 trigproc man-db 2.6.1-2ubuntu1 <aucun>
+2013-08-09 21:09:42 status half-configured man-db 2.6.1-2ubuntu1
+2013-08-09 21:09:42 status installed man-db 2.6.1-2ubuntu1

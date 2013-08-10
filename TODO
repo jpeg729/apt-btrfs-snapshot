@@ -1,16 +1,14 @@
 Roadmap in order of planned implementation
    
- history consolidation
-    -change AptHistoryEntry to store data in dictionaries by default
-    - rename get() method to _parse()
-    - stop __init__ from storing installs, upgrades etc in self
-    - use _parse in __init__
-    -consolidation
+ DpkgHistory
+    -better tests
+    -separate out the auto-installed packages
+    -read info from /var/lib/apt/extended_states
+        Package: libmad0
+        Architecture: amd64
+        Auto-Installed: 0
  
- history ought to read /var/log/dpkg.log to find manually installed pkgs
-    -and /var/log/dpkg.log.1 etc.
-    
- recent apt changes command line option
+ recent pkg changes command line option
     -think of a name for that option
     -do it
     
@@ -19,10 +17,10 @@ Roadmap in order of planned implementation
     -testing
     
  delete_snapshot 
-    -should consolidate apt change info, unless there is no parent
+    -should consolidate package change info, unless there is no parent
     
  list command
-    -list only lists the last few ancestors with consolidated detailed changes
+    -list only lists the last few ancestors with package changes
     -optionally indicate the number of ancestors to list
     
  tree view command
