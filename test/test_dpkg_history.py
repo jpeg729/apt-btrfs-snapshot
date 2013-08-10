@@ -130,6 +130,23 @@ class TestDpkgHistory(unittest.TestCase):
         expected = [(u'lib32asound2', u'1.0.25-1ubuntu10.2'), (u'lib32z1', u'1:1.2.3.4.dfsg-3ubuntu4'), (u'libc6-i386', u'2.15-0ubuntu10.4'), (u'linux-headers-3.8.0-27', u'3.8.0-27.40~precise3'), (u'linux-headers-3.8.0-27-generic', u'3.8.0-27.40~precise3'), (u'lynx-cur', u'2.8.8dev.9-2ubuntu0.12.04.1'), (u'python-gpgme', u'0.2-1')]
         self.assertEqual(log['auto-install'], expected)
 
+    def test_add(self):
+        log1 = DpkgHistory(do_parse=False)
+        log2 = DpkgHistory(do_parse=False)
+        log1['install'] = [('one', '1'), ('two', '2'), ('three', '3')]
+        log1['upgrade'] = [('four', '4, 4.1'), ('five', '5')]
+        log1['remove'] = [('six', '6'), ('seven', '7')]
+        log2['install'] = [('eight', '8'), ('six', '6.1')]
+        log2['remove'] = [('two', '2'), ('five', '5')]
+        log2['upgrade'] = [('one', '1, 1.2'), ('four', '4.1, 4.2')]
+        log3 = log1 + log2
+        self.assertEqual(log3['install'], [('eight', '8'), 
+            ('one', u'1.2'), ('three', '3')])
+        self.assertEqual(log3['upgrade'], [('four', '4, 4.2'), 
+            ('six', '6, 6.1')])
+        self.assertEqual(log3['remove'], [('five', '5'), 
+            ('seven', '7')])
+        self.assertEqual(log3['purge'], log3['auto-install'], [])
 
 if __name__ == "__main__":
     unittest.main()

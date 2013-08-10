@@ -144,7 +144,7 @@ if __name__ == "__main__":
     elif args.command == "list":
         res = apt_btrfs.list(args.how_many)
     elif args.command == "status":
-        res = apt_btrfs.status(args.how_many)
+        res = apt_btrfs.status()
     elif args.command == "set-default":
         res = apt_btrfs.set_default(args.snapshot, args.tag)
     elif args.command == "rollback":

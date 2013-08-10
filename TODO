@@ -1,12 +1,14 @@
 Roadmap in order of planned implementation
    
- status command line option
-    -gives date of last snapshot and lists recent package changes
-    
  pickle
-    -in create_snapshot and set_default
+    -in create_snapshot
+    -add function to combine two DpkgHistory objects
+    -set_default
     -testing
     
+ DpkgHistory
+    -change default for since (currently 30d)
+ 
  delete_snapshot 
     -should consolidate package change info, unless there is no parent
     

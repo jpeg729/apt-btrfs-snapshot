@@ -32,7 +32,7 @@ if _arch == "x86_64": _arch = "amd64"
 
 class DpkgHistory(dict):
     """ Parser for the dpkg history logs """
-    def __init__(self, var_location="/var/", since = None):
+    def __init__(self, var_location="/var/", since = None, do_parse=True):
         super(DpkgHistory, self).__init__()
 
         self["install"] = []
@@ -40,14 +40,44 @@ class DpkgHistory(dict):
         self["upgrade"] = []
         self["remove"] = []
         self["purge"] = []
-
+        
         self.var_location = var_location
         self.since = self._get_date_from_string(since)
-        self._get_dpkg_history()
-        if len(self['install']) > 0:
-            self.auto = self._find_auto_installs()
-            self._split_installs_by_auto()
-        self._sort_lists()
+        self.auto = []
+
+        if do_parse:
+            self._get_dpkg_history()
+            if len(self['install']) > 0:
+                self.auto = self._find_auto_installs()
+                self._split_installs_by_auto()
+            self._sort_lists()
+
+    def __add__(self, other):
+        if self.since < other.since:
+            order = self, other
+        else:
+            order = other, self
+        
+        ops_by_package = defaultdict(list)
+        versions = defaultdict(list)
+        for history in order:
+            for op in history.keys():
+                for package, version in history[op]:
+                    ops_by_package[package].append(op)
+                    if ", " in version:
+                        version = version.split(", ")
+                    else:
+                        version = [version]
+                    versions[package].append(version)
+                    
+        combined = DpkgHistory(since = order[0].since, do_parse=False)
+        combined._distill_ops(ops_by_package, versions)
+        if len(combined['install']) > 0:
+            combined.auto = order[1].auto
+            combined._split_installs_by_auto()
+        combined._sort_lists()
+        
+        return combined
 
     def _get_date_from_string(self, since):
         if isinstance(since, basestring):
@@ -61,7 +91,8 @@ class DpkgHistory(dict):
         """ Read dpkg.log's and return dictionary of ops
         """
         logfiles = self._logfiles_to_check()
-        self._parse(logfiles)
+        ops_by_package, versions = self._parse_by_package(logfiles)
+        self._distill_ops(ops_by_package, versions)
 
     def _logfiles_to_check(self):
         """ Return an ordered list of opened logfiles young enough to be 
@@ -99,13 +130,13 @@ class DpkgHistory(dict):
             for line in f:
                 yield line.strip()
 
-    def _parse(self, logfiles):
+    def _parse_by_package(self, logfiles):
         """ reads in the opened logfiles and makes lists of the ops mentioned.
             Returns a dictionary of lists, each list contains (pkg, version)
             tuples.
         """
         ops_by_package = defaultdict(list)
-        version = defaultdict(list)
+        versions = defaultdict(list)
         # List ops per package
         for line in self._read_files(logfiles):
             if line == "":
@@ -123,15 +154,18 @@ class DpkgHistory(dict):
             
             package = bits[3]
             ops_by_package[package].append(linetype)
-            version[package].append(bits[4:6])
-        
+            versions[package].append(bits[4:6])
+            
+        return ops_by_package, versions
+    
+    def _distill_ops(self, ops_by_package, versions):        
         instup = ("install", "upgrade")
         remurge = ("remove", "purge")
         # Decide which op to remember for each package
         for package, ops in ops_by_package.iteritems():
         
-            oldest_version = version[package][0][0]
-            newest_version = version[package][-1][1]
+            oldest_version = versions[package][0][0]
+            newest_version = versions[package][-1][-1]
             version_change = "%s, %s" % (oldest_version, newest_version)
             
             if ops[0] == "install" and ops[-1] not in remurge:
