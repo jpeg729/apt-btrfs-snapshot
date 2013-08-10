@@ -1,8 +1,5 @@
 Roadmap in order of planned implementation
    
- pickle
-    -set_default
-    
  delete_snapshot
     -should consolidate package change info between self and child foreach child
     

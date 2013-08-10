@@ -204,6 +204,12 @@ class TestSnapshotting(unittest.TestCase):
                     "apt-btrfs-parent")
                 self.assertEqual(os.readlink(parent_file), 
                     "../../@apt-snapshot-2013-08-06_13:26:30")
+                changes_file = os.path.join(self.model_root, i, "etc", 
+                    "apt-btrfs-changes")
+                self.assertTrue(os.path.exists(changes_file))
+                history = pickle.load(open(changes_file, "rb"))
+                self.assertEqual(len(history['install']), 10)
+                   
         self.assertTrue(os.path.exists(os.path.join(self.model_root, 
             "@apt-snapshot-2013-08-01_19:53:16")))
         parent_file = os.path.join(self.model_root, "@", "etc", 

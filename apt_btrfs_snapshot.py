@@ -337,25 +337,34 @@ class AptBtrfsSnapshot(object):
             default_root = os.path.join(mp, "@")
             staging = os.path.join(mp, "@apt-btrfs-staging")
             # TODO check whether staging already exists and prompt to remove it
-            # TODO find apt changes and pickle them
+
+            # find and store dpkg changes
+            date, history = self._get_status()
+            changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
+            pickle.dump(history, open(changes_file, "wb"))
+                
             # snapshot the requested default so as not to remove it
             res = self.commands.btrfs_subvolume_snapshot(new_root, staging)
             if not res:
                 raise Exception("Could not create snapshot")
-            # rename @ to make backup
+
+            # make backup name
             backup = os.path.join(mp, self.SNAP_PREFIX + self._get_now_str())
-            # Avoid overwriting last backup if you try again within the same 
-            # second
+            # if backup name is already in use, wait a sec and try again
             if os.path.exists(backup):
                 time.sleep(1)
                 backup = os.path.join(mp, 
                     self.SNAP_PREFIX + self._get_now_str())
+
+            # move everything into place
             os.rename(default_root, backup)
             os.rename(staging, default_root)
-            # set parent and clean-up @/etc/apt-btrfs housekeeping files
+            
+            # clean-up @/etc/apt-btrfs-changes
             changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
             if os.path.exists(changes_file):
                 os.remove(changes_file)
+            
             # set root's new parent
             self._link(snapshot_name, "@")
             
@@ -388,6 +397,7 @@ class AptBtrfsSnapshot(object):
             children = self._get_children(snapshot_name)
             for child in children:
                 self._link(parent, child)
+            # TODO consolidate changes
             res = self.commands.btrfs_delete_snapshot(to_delete)
         else:
             print("You have selected an invalid snapshot. Please make sure "
