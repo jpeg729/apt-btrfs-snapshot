@@ -24,18 +24,34 @@ import time
 import gzip
 import textwrap
 from collections import defaultdict
+import platform
+
+_arch = platform.machine()
+if _arch == "x86_64": _arch = "amd64"
 
 
-class DpkgHistory(list):
+class DpkgHistory(dict):
     """ Parser for the dpkg history logs """
     def __init__(self, var_location="/var/", since = None):
-        self.var_location = var_location
-        self.since = self._get_since_date(since)
-        self.history = self._get_dpkg_history()
+        super(DpkgHistory, self).__init__()
 
-    def _get_since_date(self, since):
+        self["install"] = []
+        self["auto-install"] = []
+        self["upgrade"] = []
+        self["remove"] = []
+        self["purge"] = []
+
+        self.var_location = var_location
+        self.since = self._get_date_from_string(since)
+        self._get_dpkg_history()
+        if len(self['install']) > 0:
+            self.auto = self._find_auto_installs()
+            self._split_installs_by_auto()
+        self._sort_lists()
+
+    def _get_date_from_string(self, since):
         if isinstance(since, basestring):
-            since = datetime.strptime(since.replace("  ", "_"), 
+            since = datetime.strptime(since.replace(" ", "_"), 
                                       "%Y-%m-%d_%H:%M:%S")
         if since is None:
             since = datetime.now() - timedelta(30)
@@ -45,8 +61,7 @@ class DpkgHistory(list):
         """ Read dpkg.log's and return dictionary of ops
         """
         logfiles = self._logfiles_to_check()
-        ops = self._parse(logfiles)
-        return ops
+        self._parse(logfiles)
 
     def _logfiles_to_check(self):
         """ Return an ordered list of opened logfiles young enough to be 
@@ -57,6 +72,8 @@ class DpkgHistory(list):
             logfiles = [open(logfile)]
         except IOError:
             return []
+        if self._get_earliest_date(logfiles[0]) < self.since:
+            return logfiles
         # Add older log files to the list until they are too old
         for i in range(1, 10):
             try:
@@ -87,7 +104,6 @@ class DpkgHistory(list):
             Returns a dictionary of lists, each list contains (pkg, version)
             tuples.
         """
-        oplists = {"install":[], "upgrade":[], "remove":[], "purge":[]}
         ops_by_package = defaultdict(list)
         version = defaultdict(list)
         # List ops per package
@@ -118,43 +134,79 @@ class DpkgHistory(list):
             newest_version = version[package][-1][1]
             version_change = "%s, %s" % (oldest_version, newest_version)
             
-            # DEBUG
-            if len(ops) > 1:
-                pass#print(package, ops, version_change)
-            
             if ops[0] == "install" and ops[-1] not in remurge:
             
-                oplists['install'].append((package, newest_version))
+                self['install'].append((package, newest_version))
                 
             elif ops[0] == "upgrade" and ops[-1] in instup:
                 
-                oplists['upgrade'].append((package, version_change))
+                self['upgrade'].append((package, version_change))
                 
             elif ops[0] == "upgrade" and ops[-1] in remurge:
                 
-                oplists[ops[-1]].append((package, oldest_version))
+                self[ops[-1]].append((package, oldest_version))
                 
             elif ops[0] in remurge and ops[-1] in instup:
             
                 if oldest_version != newest_version:
-                    oplists['upgrade'].append((package, version_change))
+                    self['upgrade'].append((package, version_change))
                 
             elif ops[0] in remurge and ops[-1] in remurge:
             
-                oplists[ops[-1]].append((package, oldest_version))
-                
-        return oplists
+                self[ops[-1]].append((package, oldest_version))
+
+    def _find_auto_installs(self):
+        states_filename = os.path.join(self.var_location, "lib", "apt", 
+                "extended_states")
+        try:
+            states_file = open(states_filename)
+        except IOError:
+            return []
+        
+        package = ""
+        auto_installed = []
+        for line in (line.strip() for line in states_file):
+            if line == "":
+                continue
+            
+            contents = line.split(" ")[1]
+            
+            if line.startswith("Package: "):
+                package = contents
+            
+            elif line.startswith("Architecture: "):
+                if contents != _arch:
+                    package += ":" + contents
+            
+            elif line.startswith("Auto-Installed: ") and package:
+                if contents == "1":
+                    auto_installed.append(package)
+                    package = ""
+
+        return auto_installed
+
+    def _split_installs_by_auto(self):
+        manual_installs = []
+        auto_installs = []
+        for package, version in self['install']:
+            if package in self.auto:
+                auto_installs.append((package, version))
+            else:
+                manual_installs.append((package, version))
+        self['install'] = manual_installs
+        self['auto-install'] = auto_installs
+
+    def _sort_lists(self):
+        for v in self.values():
+            v.sort(key = lambda x: x[0])
 
 
 if __name__ == "__main__":
-    log = DpkgHistory(var_location="test/data/var/", since=datetime(2013, 8, 6, 12, 20, 00))
-    print(" ")
-    for op, packages in log.history.iteritems():
-        print(op, len(packages))
-        for p in packages:
-            pass
-            if op == "upgrade": # and p[0].startswith('libmuff'):
-                print(p[0])
-    print(" ")
-    #print(log.history['install'], len(log.history['install']))
+    date = datetime(2013, 8, 6, 12, 20, 00)
+    log = DpkgHistory(var_location="test/data/var/", since=date)
+#    print("Changes since", date)
+#    for op, packages in log.iteritems():
+#        print(op, len(packages))
+    for i in log.auto: 
+        print(i)
 

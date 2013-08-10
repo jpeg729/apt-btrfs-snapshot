@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 # Copyright (C) 2011 Canonical
 #
 # Author:
@@ -30,7 +30,7 @@ import tempfile
 import gettext
 from gettext import gettext as _
 
-from apt_btrfs_snapshot import AptBtrfsSnapshot
+from apt_btrfs_snapshot import AptBtrfsSnapshot, supported
 
 
 if __name__ == "__main__":
@@ -42,6 +42,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--debug", action="store_true", default=False,
                         help="enable debug output")
+    parser.add_argument("--test", action="store_true", default=False,
+                        help="enable debug output")
     subparser = parser.add_subparsers(title="Commands")
     # supported
     command = subparser.add_parser(
@@ -49,7 +51,8 @@ if __name__ == "__main__":
     command.set_defaults(command="supported")
     # list
     command = subparser.add_parser(
-        "list", help=_("List available snapshots"))
+        "list", help=_("List the last n snapshots, default=10"))
+    command.add_argument("how_many", nargs='?', default=10, type=int)
     command.set_defaults(command="list")
     # snapshot
     command = subparser.add_parser(
@@ -57,14 +60,14 @@ if __name__ == "__main__":
     command.set_defaults(command="snapshot")
     # set-default
     command = subparser.add_parser(
-        "set-default", help=_("Revert to previous snapshot"))
+        "set-default", help=_("Revert to snapshot of your choice"))
     command.add_argument("snapshot")
     command.set_defaults(command="set-default")
     # rollback
     command = subparser.add_parser(
-        "rollback", help=_("Revert to previous snapshot"))
-    command.add_argument("how_many")
-    command.set_defaults(command="set-default")
+        "rollback", help=_("Rollback n snapshots, default=1"))
+    command.add_argument("how_many", nargs='?', default=1, type=int)
+    command.set_defaults(command="rollback")
     # delete
     command = subparser.add_parser(
         "delete", help=_("Delete snapshot"))
@@ -89,25 +92,30 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
+    
+    if args.test:
+        var_location = "test/data/var"
+        model_root = "test/data/model_root"
+
+    if args.command == "supported":
+        res = supported()
+        if res:
+            print(_("Supported"))
+        else:
+            print(_("Not supported"))
 
     if os.getuid() != 0:
         print(_("Sorry, you need to be root to run this program"))
         sys.exit(1)
 
-    apt_btrfs = AptBtrfsSnapshot()
-    if not apt_btrfs.snapshots_supported():
+    if not supported():
         print(_("Sorry, your system lacks support for the snapshot feature"))
         sys.exit(1)
 
+    apt_btrfs = AptBtrfsSnapshot()
     res = False
-    if args.command == "supported":
-        res = apt_btrfs.snapshots_supported()
-        if res:
-            print(_("Supported"))
-        else:
-            print(_("Not supported"))
-    elif args.command == "snapshot":
-        res = apt_btrfs.create()
+    if args.command == "snapshot":
+        res = apt_btrfs.snapshot()
     elif args.command == "list":
         res = apt_btrfs.list()
     elif args.command == "set-default":

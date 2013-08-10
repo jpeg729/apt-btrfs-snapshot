@@ -141,7 +141,7 @@ class AptBtrfsSnapshot(object):
     # backname when changing
     BACKUP_PREFIX = SNAP_PREFIX + "old-root-"
 
-    def __init__(self, fstab="/etc/fstab", test_mp=None):
+    def __init__(self, fstab="/etc/fstab", test_mp=None, model_root=None):
         self.fstab = Fstab(fstab)
         self.commands = LowLevelCommands()
         self.parents = None
@@ -178,7 +178,7 @@ class AptBtrfsSnapshot(object):
         return datetime.datetime.now().replace(microsecond=0).isoformat(
             str('_'))
 
-    def create(self):
+    def snapshot(self):
         mp = self.mp
         # find apt changes
         parent_file = os.path.join(mp, "@", "etc", "apt-btrfs-parent")

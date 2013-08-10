@@ -1,16 +1,7 @@
 Roadmap in order of planned implementation
    
- DpkgHistory
-    -better tests
-    -separate out the auto-installed packages
-    -read info from /var/lib/apt/extended_states
-        Package: libmad0
-        Architecture: amd64
-        Auto-Installed: 0
- 
- recent pkg changes command line option
-    -think of a name for that option
-    -do it
+ status command line option
+    -gives date of last snapshot and lists recent package changes
     
  pickle
     -in create_snapshot and set_default
@@ -28,18 +19,27 @@ Roadmap in order of planned implementation
     -view with change stats
     -detailed view with all consolidated changes
     
- ?(re)name snapshot
-    would append/replace after the date part of the name
+ tag snapshot
+    append/replace tag after the date part of the name
+    -add option to "create" command
     
  factor in stuff from Chousuke
-    -snapshot frequency throttling & shell var limiting
+    -snapshot frequency throttling
+    -snapshot disabling by shell var presence
     
  snapshot cleaning
     -command line clean [apt|tmp|crash] option
-    -btrfs subvolume find-new @ 143
  
- rollback and setdefault should prompt for a name for the abandoned subvolume
+ delete_older_than 
+    -to keep tree intact
+    - should not delete tagged snapshots
+    - nor snapshots with multiple children 
+    -manual deletion is always possible
+ 
+ rollback and setdefault should? prompt for a tag for the abandoned subvolume
  
  single instance
     -http://stackoverflow.com/questions/380870/python-single-instance-of-program
     -3rd answer
+ 
+ update man page
