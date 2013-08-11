@@ -215,21 +215,34 @@ class AptBtrfsSnapshot(object):
                         initial_indent='  ', subsequent_indent='  ')
                 print(packages)
 
+    def _load_changes(self, snapshot):
+        changes_file = os.path.join(self.mp, snapshot, CHANGES_FILE)
+        try:
+            history = pickle.load(open(changes_file, "rb"))
+            return history
+        except IOError:
+            return None
+    
+    def _store_changes(self, snapshot, changes):
+        changes_file = os.path.join(self.mp, snapshot, CHANGES_FILE)
+        pickle.dump(changes, open(changes_file, "wb"))
+    
     def snapshot(self):
         mp = self.mp
         
         # make snapshot
         snap_id = SNAP_PREFIX + self._get_now_str()
-        res = self.commands.btrfs_subvolume_snapshot(os.path.join(mp, "@"),
-            os.path.join(mp, snap_id))
+        res = self.commands.btrfs_subvolume_snapshot(
+            os.path.join(self.mp, "@"),
+            os.path.join(self.mp, snap_id))
         
         # find and store dpkg changes
         date, history = self._get_status()
-        changes_file = os.path.join(mp, snap_id, CHANGES_FILE)
-        pickle.dump(history, open(changes_file, "wb"))
+        self._store_changes(snap_id, history)
         
         # set root's new parent
         self._link(snap_id, "@")
+        
         return res
 
     def _parse_tree(self):
@@ -279,15 +292,9 @@ class AptBtrfsSnapshot(object):
             parent_path = os.path.join("..", "..", parent)
             os.symlink(parent_path, parent_file)
 
-    def _load_changes(self, snapshot):
-        return None
-    
-    def _store_changes(self, snapshot, changes):
-        pass
-    
     def get_btrfs_root_snapshots_list(self, older_than=False):
-        """ get the list of available snapshot
-            If "older_then" is given (in datetime format) it will only include
+        """ get the list of available snapshots
+            If "older_then" is given (as a datetime) it will only include
             snapshots that are older then the given date)
         """
         l = []
@@ -345,8 +352,7 @@ class AptBtrfsSnapshot(object):
 
             # find and store dpkg changes
             date, history = self._get_status()
-            changes_file = os.path.join(mp, "@", CHANGES_FILE)
-            pickle.dump(history, open(changes_file, "wb"))
+            self._store_changes("@", history)
                 
             # snapshot the requested default so as not to remove it
             res = self.commands.btrfs_subvolume_snapshot(new_root, staging)
@@ -397,12 +403,17 @@ class AptBtrfsSnapshot(object):
         if (
                 os.path.isdir(to_delete) and
                 snapshot_name.startswith(SNAP_PREFIX)):
-            # correct parent links
+            
+            # correct parent links and combine change info
             parent = self._get_parent(snapshot_name)
             children = self._get_children(snapshot_name)
+            old_history = self._load_changes(snapshot_name)
             for child in children:
                 self._link(parent, child)
-            # TODO consolidate changes
+                newer_history = self._load_changes(child)
+                combined = old_history + newer_history
+                self._store_changes(child, combined)
+            
             res = self.commands.btrfs_delete_snapshot(to_delete)
         else:
             print("You have selected an invalid snapshot. Please make sure "

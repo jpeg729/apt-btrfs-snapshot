@@ -1,10 +1,5 @@
 Roadmap in order of planned implementation
    
- move snapshot list tests into class with setUp func
- 
- delete_snapshot
-    -should consolidate package change info between self and child foreach child
-    
  DpkgHistory
     -since date is usually known except when there is no parent link
     - skip? 

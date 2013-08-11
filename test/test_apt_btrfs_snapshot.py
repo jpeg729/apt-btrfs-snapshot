@@ -230,12 +230,16 @@ class TestSnapshotting(unittest.TestCase):
         changes_file = os.path.join(self.model_root, 
             SNAP_PREFIX + "2013-08-01_19:53:16", CHANGES_FILE)
         history = pickle.load(open(changes_file, "rb"))
-        self.assertEqual(True, False)
+        self.assertEqual(history['install'], [('two', '2')])
+        self.assertEqual(history['auto-install'], history['purge'], [])
+        self.assertEqual(history['upgrade'], history['remove'], [])      
         changes_file = os.path.join(self.model_root, 
             SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go", CHANGES_FILE)
         history = pickle.load(open(changes_file, "rb"))
-        self.assertEqual(True, False)
-        
+        self.assertEqual(history['install'], [('one', '1.1'), ('three', '3')])
+        self.assertEqual(history['upgrade'], [('zero', '0, 0.1')])
+        self.assertEqual(history['auto-install'], [])
+        self.assertEqual(history['purge'], history['remove'], [])
 
     def test_link(self):
         child = SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go"
@@ -269,8 +273,8 @@ class TestSnapshotting(unittest.TestCase):
         date, history = self.apt_btrfs._get_status()
         self.assertEqual(len(history['install']), 10)
         self.assertEqual(len(history['auto-install']), 7)
-        self.assertEqual(len(history['remove']), len(history['purge']), 0)
-        self.assertEqual(len(history['upgrade']), 0)      
+        self.assertEqual(history['remove'], history['purge'], [])
+        self.assertEqual(history['upgrade'], [])      
 
 
 if __name__ == "__main__":
