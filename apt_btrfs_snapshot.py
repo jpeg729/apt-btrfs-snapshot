@@ -29,6 +29,10 @@ import cPickle as pickle
 import textwrap
 
 
+SNAP_PREFIX = "@apt-snapshot-"
+CHANGES_FILE = "etc/apt-btrfs-changes"
+PARENT_LINK = "etc/apt-btrfs-parent"
+
 def debug(*args):
     print(*args)
 
@@ -137,11 +141,6 @@ class LowLevelCommands(object):
 class AptBtrfsSnapshot(object):
     """ the high level object that interacts with the snapshot system """
 
-    # normal snapshot
-    SNAP_PREFIX = "@apt-snapshot-"
-    # backname when changing
-    BACKUP_PREFIX = SNAP_PREFIX + "old-root-"
-
     def __init__(self, fstab="/etc/fstab", test_mp=None):
         self.fstab = Fstab(fstab)
         self.commands = LowLevelCommands()
@@ -182,9 +181,9 @@ class AptBtrfsSnapshot(object):
     def _get_status(self):
         mp = self.mp
         # find package changes
-        parent_file = os.path.join(mp, "@", "etc", "apt-btrfs-parent")
+        parent_file = os.path.join(mp, "@", PARENT_LINK)
         if os.path.exists(parent_file):
-            p = 6 + len(self.SNAP_PREFIX)
+            p = 6 + len(SNAP_PREFIX)
             date_parent = os.readlink(parent_file)[p:p + 19].replace("_", " ")
         else:
             date_parent = None
@@ -220,14 +219,13 @@ class AptBtrfsSnapshot(object):
         mp = self.mp
         
         # make snapshot
-        snap_id = self.SNAP_PREFIX + self._get_now_str()
-        res = self.commands.btrfs_subvolume_snapshot(
-            os.path.join(mp, "@"),
+        snap_id = SNAP_PREFIX + self._get_now_str()
+        res = self.commands.btrfs_subvolume_snapshot(os.path.join(mp, "@"),
             os.path.join(mp, snap_id))
         
         # find and store dpkg changes
         date, history = self._get_status()
-        changes_file = os.path.join(mp, snap_id, "etc", "apt-btrfs-changes")
+        changes_file = os.path.join(mp, snap_id, CHANGES_FILE)
         pickle.dump(history, open(changes_file, "wb"))
         
         # set root's new parent
@@ -241,7 +239,7 @@ class AptBtrfsSnapshot(object):
         snapshots = self.get_btrfs_root_snapshots_list()
         snapshots.append("@")
         for snapshot in snapshots:
-            parent_file = os.path.join(mp, snapshot, "etc", "apt-btrfs-parent")
+            parent_file = os.path.join(mp, snapshot, PARENT_LINK)
             try:
                 link_to = os.readlink(parent_file)
             except OSError:
@@ -272,7 +270,7 @@ class AptBtrfsSnapshot(object):
         """ sets symlink from child to parent 
             or deletes it if parent == None 
         """
-        parent_file = os.path.join(self.mp, child, "etc", "apt-btrfs-parent")
+        parent_file = os.path.join(self.mp, child, PARENT_LINK)
         # remove parent link from child
         if os.path.exists(parent_file):
             os.remove(parent_file)
@@ -281,6 +279,12 @@ class AptBtrfsSnapshot(object):
             parent_path = os.path.join("..", "..", parent)
             os.symlink(parent_path, parent_file)
 
+    def _load_changes(self, snapshot):
+        return None
+    
+    def _store_changes(self, snapshot, changes):
+        pass
+    
     def get_btrfs_root_snapshots_list(self, older_than=False):
         """ get the list of available snapshot
             If "older_then" is given (in datetime format) it will only include
@@ -289,8 +293,9 @@ class AptBtrfsSnapshot(object):
         l = []
         mp = self.mp
         for e in os.listdir(mp):
-            if e.startswith(self.SNAP_PREFIX):
-                d = e[len(self.SNAP_PREFIX):]
+            if e.startswith(SNAP_PREFIX):
+                pos = len(SNAP_PREFIX)
+                d = e[pos:pos + 19]
                 try:
                     date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")
                 except ValueError:
@@ -333,14 +338,14 @@ class AptBtrfsSnapshot(object):
         new_root = os.path.join(mp, snapshot_name)
         if (
                 os.path.isdir(new_root) and
-                snapshot_name.startswith(self.SNAP_PREFIX)):
+                snapshot_name.startswith(SNAP_PREFIX)):
             default_root = os.path.join(mp, "@")
             staging = os.path.join(mp, "@apt-btrfs-staging")
             # TODO check whether staging already exists and prompt to remove it
 
             # find and store dpkg changes
             date, history = self._get_status()
-            changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
+            changes_file = os.path.join(mp, "@", CHANGES_FILE)
             pickle.dump(history, open(changes_file, "wb"))
                 
             # snapshot the requested default so as not to remove it
@@ -349,19 +354,19 @@ class AptBtrfsSnapshot(object):
                 raise Exception("Could not create snapshot")
 
             # make backup name
-            backup = os.path.join(mp, self.SNAP_PREFIX + self._get_now_str())
+            backup = os.path.join(mp, SNAP_PREFIX + self._get_now_str())
             # if backup name is already in use, wait a sec and try again
             if os.path.exists(backup):
                 time.sleep(1)
                 backup = os.path.join(mp, 
-                    self.SNAP_PREFIX + self._get_now_str())
+                    SNAP_PREFIX + self._get_now_str())
 
             # move everything into place
             os.rename(default_root, backup)
             os.rename(staging, default_root)
             
             # clean-up @/etc/apt-btrfs-changes
-            changes_file = os.path.join(mp, "@", "etc", "apt-btrfs-changes")
+            changes_file = os.path.join(mp, "@", CHANGES_FILE)
             if os.path.exists(changes_file):
                 os.remove(changes_file)
             
@@ -373,7 +378,7 @@ class AptBtrfsSnapshot(object):
         else:
             print("You have selected an invalid snapshot. Please make sure "
                   "that it exists, and that its name starts with "
-                  "\"%s\"" % self.SNAP_PREFIX)
+                  "\"%s\"" % SNAP_PREFIX)
         return True
 
     def rollback(self, how_many=1):
@@ -391,7 +396,7 @@ class AptBtrfsSnapshot(object):
         res = True
         if (
                 os.path.isdir(to_delete) and
-                snapshot_name.startswith(self.SNAP_PREFIX)):
+                snapshot_name.startswith(SNAP_PREFIX)):
             # correct parent links
             parent = self._get_parent(snapshot_name)
             children = self._get_children(snapshot_name)
@@ -402,5 +407,5 @@ class AptBtrfsSnapshot(object):
         else:
             print("You have selected an invalid snapshot. Please make sure "
                   "that it exists, and that its name starts with "
-                  "\"%s\"" % self.SNAP_PREFIX)
+                  "\"%s\"" % SNAP_PREFIX)
         return res

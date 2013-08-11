@@ -1,5 +1,7 @@
 Roadmap in order of planned implementation
    
+ move snapshot list tests into class with setUp func
+ 
  delete_snapshot
     -should consolidate package change info between self and child foreach child
     
