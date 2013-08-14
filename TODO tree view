@@ -1,0 +1,19 @@
+tree can show just a few of the latest.
+tree can show everything
+tree can show structure - includes only snapshots with no children, no parent, or multiple children
+
+Normal function #2
+1. find childless snapshots in reverse age order (youngest first) = column order
+2. Parse that list. find youngest parent of all of those
+3. Print youngest parent after printing all childless snapshots younger than it
+4. Replace youngest parent's child by youngest parent and repeat.
+
+Problem: branches overlap.
+Solution
+1. Find childless snapshots in reverse age order.
+2. Recursively print parents up to and not including one that has several children
+3. Go to next childless snapshot
+4. Do step 2 for it too.
+5. If children quota for the one with several children is reached, print it
+6. Do step 2 for it too.
+7. etc

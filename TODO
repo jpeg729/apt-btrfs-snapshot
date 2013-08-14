@@ -14,21 +14,21 @@ Roadmap in order of planned implementation
     
  tag snapshot
     append/replace tag after the date part of the name
-    -add option to "create" command
-    -deal with rollback default n=1 and tag
+    -add tag option to "create" command
+    -set_default and rollback should prompt for tag if not given one
+    -rollback option -t to specify tag
     
  factor in stuff from Chousuke
     -snapshot frequency throttling
     -snapshot disabling by shell var presence
     
- snapshot cleaning
+ used space cleaning
     -command line clean [apt|tmp|crash] option
  
  delete_older_than 
     -to keep tree intact
     - should not delete tagged snapshots
     - nor snapshots with multiple children 
-    -manual deletion is always possible
  
  single instance
     -http://stackoverflow.com/questions/380870/python-single-instance-of-program
@@ -38,13 +38,11 @@ Roadmap in order of planned implementation
  
 Issues/bugs/questions
  
- DpkgHistory
+ DpkgHistory calls from AptBtrfsSnapshot.py
     -since date is usually known except when there is no parent link
     - skip? 
     - or see if there are other snapshots without parent links?
-    - skipping is easier
- 
- rollback and setdefault should? prompt for a tag for the abandoned subvolume
+    - or prompt for a date
  
  apt-btrfs._parse should? take into account snapshots with no info
     -only to ease the transition
