@@ -31,11 +31,13 @@ from fstab import (
     Fstab,
 )
 from dpkg_history import DpkgHistory
-
-
-SNAP_PREFIX = "@apt-snapshot-"
-CHANGES_FILE = "etc/apt-btrfs-changes"
-PARENT_LINK = "etc/apt-btrfs-parent"
+import snapshots
+from snapshots import (
+    Snapshot,
+    SNAP_PREFIX,
+    PARENT_LINK, 
+    CHANGES_FILE, 
+)
 
 
 def debug(*args):
@@ -101,7 +103,7 @@ class AptBtrfsSnapshot(object):
             if not self.commands.mount(uuid, mountpoint):
                 return None
             self.mp = mountpoint
-            #self.mp = self.mount_btrfs_root_volume()
+        snapshots.mp = self.mp
 
     def __del__(self):
         """ unmount root volume if necessary """
@@ -165,7 +167,7 @@ class AptBtrfsSnapshot(object):
         changes_file = os.path.join(self.mp, snapshot, CHANGES_FILE)
         pickle.dump(changes, open(changes_file, "wb"))
     
-    def snapshot(self):
+    def create(self):
         mp = self.mp
         
         # make snapshot
@@ -245,8 +247,8 @@ class AptBtrfsSnapshot(object):
                 try:
                     date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")
                 except ValueError:
-                    # have found a named snapshot
-                    date = older_than
+                    # something is wrong
+                    raise Hell
                 if older_than == False or date < older_than:
                     l.append(e)
         return l

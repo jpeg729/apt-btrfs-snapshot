@@ -178,7 +178,7 @@ class TestSnapshotting(unittest.TestCase):
         self.assertEqual(len(self.apt_btrfs.orphans), 1)
 
     def test_btrfs_create_snapshot(self):
-        res = self.apt_btrfs.snapshot()
+        res = self.apt_btrfs.create()
         # check results
         self.assertTrue(res)
         self.assertTrue(os.path.exists(os.path.join(*self.new_parent)))

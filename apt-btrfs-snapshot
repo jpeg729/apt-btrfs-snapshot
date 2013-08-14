@@ -76,11 +76,11 @@ if __name__ == "__main__":
     command = subparser.add_parser(
         "status", help=_("Get current state"))
     command.set_defaults(command="status")
-    # snapshot
+    # create
     command = subparser.add_parser(
-        "snapshot", help=_("Create a new snapshot"))
+        "create", help=_("Create a new snapshot"))
     command.add_argument("tag", nargs='?', default="")
-    command.set_defaults(command="snapshot")
+    command.set_defaults(command="create")
     # tag
     command = subparser.add_parser(
         "tag", help=_("Set/change the tag of a snapshot"))
@@ -147,8 +147,8 @@ if __name__ == "__main__":
         apt_btrfs = AptBtrfsSnapshot()
     
     res = False
-    if args.command == "snapshot":
-        res = apt_btrfs.snapshot(args.tag)
+    if args.command == "create":
+        res = apt_btrfs.create(args.tag)
     elif args.command == "tag":
         res = apt_btrfs.tag(args.snapshot, args.tag)
     elif args.command == "list":
