@@ -146,6 +146,7 @@ class AptBtrfsSnapshot(object):
         self.commands = LowLevelCommands()
         self.parents = None
         self.children = None
+        self.orphans = None
         # if we haven't been given a testing ground to play in, mount the real
         # root volume
         self.test = test_mp is not None
@@ -249,6 +250,7 @@ class AptBtrfsSnapshot(object):
         mp = self.mp
         self.parents = {}
         self.children = {}
+        self.orphans = []
         snapshots = self.get_btrfs_root_snapshots_list()
         snapshots.append("@")
         for snapshot in snapshots:
@@ -256,7 +258,7 @@ class AptBtrfsSnapshot(object):
             try:
                 link_to = os.readlink(parent_file)
             except OSError:
-                # TODO stick it in some list
+                self.orphans.append(snapshot)
                 continue
             path, parent = os.path.split(link_to)
             self.parents[snapshot] = parent

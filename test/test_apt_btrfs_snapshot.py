@@ -93,6 +93,12 @@ class TestFstab(unittest.TestCase):
     
 
 class TestSnapshotting(unittest.TestCase):
+    """ A lengthy setUp function copies a model subvolume tree with parent
+        links and some package change info. A couple of LowLevelCommand
+        functions are overwritten. All that allows test functions to do some
+        real work on the model subvolume tree without any risk of messing
+        anything up.
+    """
 
     def setUp(self):
         self.testdir = os.path.dirname(os.path.abspath(__file__))
@@ -107,7 +113,7 @@ class TestSnapshotting(unittest.TestCase):
             fstab=os.path.join(self.testdir, "data", "fstab"),
             test_mp=self.model_root)
         # hack to replace low level snapshot command with a working copy func
-        # that reports back on its working
+        # that reports back on its working.
         # I couldn't see how to do this class-wide using mock
         self.new_parent = None
         self.args = []
@@ -165,6 +171,10 @@ class TestSnapshotting(unittest.TestCase):
         self.assertEqual(res, SNAP_PREFIX + "2013-07-26_14:50:53", 
             self.apt_btrfs.parents[SNAP_PREFIX + "2013-07-31_00:00:04"])
         self.assertIn("@", self.apt_btrfs.parents.keys())
+        
+    def test_parse_orphans(self):
+        self.apt_btrfs._parse_tree()
+        self.assertEqual(len(self.apt_btrfs.orphans), 1)
 
     def test_btrfs_create_snapshot(self):
         res = self.apt_btrfs.snapshot()

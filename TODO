@@ -1,7 +1,10 @@
 Roadmap in order of planned implementation
    
  list command
-    -list only lists the last few ancestors with package changes
+    -leave as is
+ 
+ recent command
+    -lists only the last few ancestors with package changes
     -optionally indicate the number of ancestors to list
     
  tree view command
