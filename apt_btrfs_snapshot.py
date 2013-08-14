@@ -24,14 +24,19 @@ import subprocess
 import sys
 import time
 import tempfile
-from dpkg_history import DpkgHistory
 import cPickle as pickle
 import textwrap
+
+from fstab import (
+    Fstab,
+)
+from dpkg_history import DpkgHistory
 
 
 SNAP_PREFIX = "@apt-snapshot-"
 CHANGES_FILE = "etc/apt-btrfs-changes"
 PARENT_LINK = "etc/apt-btrfs-parent"
+
 
 def debug(*args):
     print(*args)
@@ -39,68 +44,6 @@ def debug(*args):
 
 class AptBtrfsSnapshotError(Exception):
     pass
-
-
-class AptBtrfsNotSupportedError(AptBtrfsSnapshotError):
-    pass
-
-
-class FstabEntry(object):
-    """ a single fstab entry line """
-    @classmethod
-    def from_line(cls, line):
-        # split up
-        args = line.partition("#")[0].split()
-        # use only the first 7 args and ignore anything after them, mount
-        # seems to do the same, see bug #873411 comment #7
-        return FstabEntry(*args[0:6])
-
-    def __init__(self, fs_spec, mountpoint, fstype, options, dump=0, passno=0):
-        # uuid or device
-        self.fs_spec = fs_spec
-        self.mountpoint = mountpoint
-        self.fstype = fstype
-        self.options = options
-        self.dump = dump
-        self.passno = passno
-
-    def __repr__(self):
-        return "<FstabEntry '%s' '%s' '%s' '%s' '%s' '%s'>" % (
-            self.fs_spec, self.mountpoint, self.fstype,
-            self.options, self.dump, self.passno)
-
-
-class Fstab(list):
-    """ a list of FstabEntry items """
-    def __init__(self, fstab="/etc/fstab"):
-        super(Fstab, self).__init__()
-
-        with open(fstab) as fstab_file:
-            for line in (l.strip() for l in fstab_file):
-                if line == "" or line.startswith("#"):
-                    continue
-                try:
-                    entry = FstabEntry.from_line(line)
-                except ValueError:
-                    continue
-                self.append(entry)
-
-    def get_supported_btrfs_root_fstab_entry(self):
-        """ return the supported btrfs root FstabEntry or None """
-        for entry in self:
-            if (
-                    entry.mountpoint == "/" and
-                    entry.fstype == "btrfs" and
-                    "subvol=@" in entry.options):
-                return entry
-        return None
-
-    def uuid_for_mountpoint(self, mountpoint, fstab="/etc/fstab"):
-        """ return the device or UUID for the given mountpoint """
-        for entry in self:
-            if entry.mountpoint == mountpoint:
-                return entry.fs_spec
-        return None
 
 
 def supported(fstab="/etc/fstab"):
@@ -114,6 +57,7 @@ def supported(fstab="/etc/fstab"):
     fstab = Fstab(fstab)
     entry = fstab.get_supported_btrfs_root_fstab_entry()
     return entry is not None
+
 
 
 class LowLevelCommands(object):
@@ -152,28 +96,21 @@ class AptBtrfsSnapshot(object):
         self.test = test_mp is not None
         self.mp = test_mp
         if self.mp is None:
-            self.mp = self.mount_btrfs_root_volume()
+            uuid = self.fstab.uuid_for_mountpoint("/")
+            mountpoint = tempfile.mkdtemp(prefix="apt-btrfs-snapshot-mp-")
+            if not self.commands.mount(uuid, mountpoint):
+                return None
+            self.mp = mountpoint
+            #self.mp = self.mount_btrfs_root_volume()
 
     def __del__(self):
         """ unmount root volume if necessary """
         # This will probably not get run if there are cyclic references.
         # check thoroughly because we get called even if __init__ fails
         if not self.test and self.mp is not None:
-            self.umount_btrfs_root_volume()
-
-    def mount_btrfs_root_volume(self):
-        uuid = self.fstab.uuid_for_mountpoint("/")
-        mountpoint = tempfile.mkdtemp(prefix="apt-btrfs-snapshot-mp-")
-        if not self.commands.mount(uuid, mountpoint):
-            return None
-        self.mp = mountpoint
-        return self.mp
-
-    def umount_btrfs_root_volume(self):
-        res = self.commands.umount(self.mp)
-        os.rmdir(self.mp)
-        self.mp = None
-        return res
+            res = self.commands.umount(self.mp)
+            os.rmdir(self.mp)
+            self.mp = None
 
     def _get_now_str(self):
         return datetime.datetime.now().replace(microsecond=0).isoformat(
@@ -319,23 +256,14 @@ class AptBtrfsSnapshot(object):
         print("  \n".join(self.get_btrfs_root_snapshots_list()))
         return True
 
-    def _parse_older_than_to_datetime(self, timefmt):
-        now = datetime.datetime.now()
-        if not timefmt.endswith("d"):
-            raise Exception("Please specify time in days (e.g. 10d)")
-        days = int(timefmt[:-1])
-        return now - datetime.timedelta(days)
-
-    def list_older_than(self, timefmt):
-        older_than = self._parse_older_than_to_datetime(timefmt)
+    def list_older_than(self, older_than):
         print("Available snapshots older than '%s':" % timefmt)
         print("  \n".join(self.get_btrfs_root_snapshots_list(
             older_than=older_than)))
         return True
 
-    def delete_older_than(self, timefmt):
+    def delete_older_than(self, older_than):
         res = True
-        older_than = self._parse_older_than_to_datetime(timefmt)
         for snap in self.get_btrfs_root_snapshots_list(
                 older_than=older_than):
             res &= self.delete(snap)

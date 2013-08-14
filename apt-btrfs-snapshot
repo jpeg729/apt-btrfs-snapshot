@@ -22,15 +22,15 @@ import argparse
 import datetime
 import logging
 import os
-import string
-import subprocess
 import sys
-import tempfile
 
 import gettext
 from gettext import gettext as _
 
-from apt_btrfs_snapshot import AptBtrfsSnapshot, supported
+from apt_btrfs_snapshot import (
+    AptBtrfsSnapshot, 
+    supported,
+)
 
 
 class ReportCalls(object):
@@ -42,6 +42,14 @@ class ReportCalls(object):
     def __getattr__(self, attr):
         return self.make_skeleton(attr)
         
+
+def _parse_older_than_to_datetime(self, timefmt):
+    now = datetime.datetime.now()
+    if not timefmt.endswith("d"):
+        raise Exception("Please specify time in days (e.g. 10d)")
+    days = int(timefmt[:-1])
+    return now - datetime.timedelta(days)
+
 
 if __name__ == "__main__":
 
@@ -120,8 +128,10 @@ if __name__ == "__main__":
         res = supported()
         if res:
             print(_("Supported"))
+            sys.exit(0)
         else:
             print(_("Not supported"))
+            sys.exit(1)
 
     if os.getuid() != 0:
         print(_("Sorry, you need to be root to run this program"))
@@ -152,9 +162,11 @@ if __name__ == "__main__":
     elif args.command == "delete":
         res = apt_btrfs.delete(args.snapshot)
     elif args.command == "list-older-than":
-        res = apt_btrfs.list_older_than(args.time)
+        time = _parse_older_than_to_datetime(args.time)
+        res = apt_btrfs.list_older_than(time)
     elif args.command == "delete-older-than":
-        res = apt_btrfs.delete_older_than(args.time)
+        time = _parse_older_than_to_datetime(args.time)
+        res = apt_btrfs.delete_older_than(time)
     else:
         print(_("ERROR: Unhandled command: '%s'") % args.command)
 

@@ -1,5 +1,9 @@
 Roadmap in order of planned implementation
    
+ refactor
+    fstab -> separate file
+    AptBtrfsSnapshot has too many methods
+ 
  list command
     -leave as is
  
