@@ -131,6 +131,9 @@ class Snapshot(object):
         else:
             object.__setattr__(self, attr, value)
     
+    def __unicode__(self):
+        return self.name
+        
     def __str__(self):
         return self.name
         

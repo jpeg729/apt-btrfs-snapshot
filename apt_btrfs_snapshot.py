@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (C) 2011 Canonical
 #
 # Author:
@@ -265,13 +266,13 @@ class AptBtrfsSnapshot(object):
         """ walks up the snapshot tree until the next one has more than one 
             child, pretty printing each one
         """
-        padding = "|  " * (column - 1)
+        padding = u"│  " * (column - 1)
         pointer = ""
         if column > 0:
-            pointer += "r--"
-        print('ouf', padding + pointer + str(snapshot))
+            pointer += u"┌──"
+        print(padding + pointer + str(snapshot))
         if column > 0:
-            pointer = "|  "
+            pointer = u"├──"
         while True:
             snapshot = snapshot.parent
             if snapshot == None or len(snapshot.children) > 1:
@@ -282,7 +283,7 @@ class AptBtrfsSnapshot(object):
         """ pretty print a view of the tree """
         to_print = [Snapshot("@")]
         for snap in snapshots.get_list():
-            if snap not in snapshots.children.keys():
+            if snap.children == None:
                 to_print.append(snap)
         to_print.sort(key = lambda x: x.date)
         print(to_print)
@@ -295,16 +296,30 @@ class AptBtrfsSnapshot(object):
             except IndexError:
                 break
             junction = self._print_up_to_junction(snapshot, column)
-            if junction in junction_branches.keys():
-                junction_branches[junction] -= 1
-                junction_columns[junction].append(column)
-                if junction_branches[junction] == 0:
+            if junction == None:
+                pass
+            elif junction.name in junction_branches.keys():
+                junction_branches[junction.name] -= 1
+                #print('junction ' + str(junction) + ' already seen ' + str(junction_branches[junction.name]))
+                junction_columns[junction.name].append(column)
+                if junction_branches[junction.name] == 0:
+                    #print("joining", junction_columns[junction.name])
                     to_print.append(junction)
-                    print("branch junction join-up lines", junction_columns[junction])
-                    column = junction_columns[junction][0]
-            elif junction != None:
-                junction_branches[junction] = len(junction.children) - 1
-                junction_columns[junction] = [column]
+                    # print branch join up line
+                    cols = junction_columns[junction.name]
+                    joinup = u"│  " * (cols[0] - 1) + u"├──"
+                    for i in range(cols[0] + 1, cols[-1]):
+                        if i in cols:
+                            joinup += u"┴──"
+                        else:
+                            joinup += u"───"
+                    joinup += u"┘"
+                    print(joinup)
+                    column = junction_columns[junction.name][0] - 1
+            else:
+                #print('new junction found ' + str(junction) + str(len(junction.children) - 1))
+                junction_branches[junction.name] = len(junction.children) - 1
+                junction_columns[junction.name] = [column]
             
             column += 1
             
