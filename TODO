@@ -26,6 +26,9 @@ Roadmap in order of planned implementation
     -snapshot frequency throttling
     -snapshot disabling by shell var presence
     
+ set_default
+    check whether staging already exists and prompt to remove it
+ 
  used space cleaning
     -command line clean [apt|tmp|crash] option
  

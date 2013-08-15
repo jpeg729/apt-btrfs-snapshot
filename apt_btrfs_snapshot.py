@@ -40,14 +40,6 @@ from snapshots import (
 )
 
 
-def debug(*args):
-    print(*args)
-
-
-class AptBtrfsSnapshotError(Exception):
-    pass
-
-
 def supported(fstab="/etc/fstab"):
     """ verify that the system supports apt btrfs snapshots
         by checking if the right fs layout is used etc
@@ -59,7 +51,6 @@ def supported(fstab="/etc/fstab"):
     fstab = Fstab(fstab)
     entry = fstab.get_supported_btrfs_root_fstab_entry()
     return entry is not None
-
 
 
 class LowLevelCommands(object):
@@ -103,7 +94,7 @@ class AptBtrfsSnapshot(object):
             if not self.commands.mount(uuid, mountpoint):
                 return None
             self.mp = mountpoint
-        snapshots.mp = self.mp
+        snapshots.setup(self.mp)
 
     def __del__(self):
         """ unmount root volume if necessary """
@@ -154,22 +145,8 @@ class AptBtrfsSnapshot(object):
                     packages = textwrap.fill(packages, width=int(columns), 
                         initial_indent='  ', subsequent_indent='  ')
                 print(packages)
-
-    def _load_changes(self, snapshot):
-        changes_file = os.path.join(self.mp, snapshot, CHANGES_FILE)
-        try:
-            history = pickle.load(open(changes_file, "rb"))
-            return history
-        except IOError:
-            return None
-    
-    def _store_changes(self, snapshot, changes):
-        changes_file = os.path.join(self.mp, snapshot, CHANGES_FILE)
-        pickle.dump(changes, open(changes_file, "wb"))
     
     def create(self):
-        mp = self.mp
-        
         # make snapshot
         snap_id = SNAP_PREFIX + self._get_now_str()
         res = self.commands.btrfs_subvolume_snapshot(
@@ -178,113 +155,45 @@ class AptBtrfsSnapshot(object):
         
         # find and store dpkg changes
         date, history = self._get_status()
-        self._store_changes(snap_id, history)
+        Snapshot(snap_id).changes = history
         
         # set root's new parent
-        self._link(snap_id, "@")
+        Snapshot("@").parent = snap_id
         
         return res
 
-    def _parse_tree(self):
-        mp = self.mp
-        self.parents = {}
-        self.children = {}
-        self.orphans = []
-        snapshots = self.get_btrfs_root_snapshots_list()
-        snapshots.append("@")
-        for snapshot in snapshots:
-            parent_file = os.path.join(mp, snapshot, PARENT_LINK)
-            try:
-                link_to = os.readlink(parent_file)
-            except OSError:
-                self.orphans.append(snapshot)
-                continue
-            path, parent = os.path.split(link_to)
-            self.parents[snapshot] = parent
-            if parent in self.children.keys():
-                self.children[parent].append(snapshot)
-            else:
-                self.children[parent] = [snapshot]
-
-    def _get_parent(self, snapshot):
-        if self.parents is None:
-            self._parse_tree()
-        if snapshot in self.parents.keys():
-            return self.parents[snapshot]
-        return None
-
-    def _get_children(self, snapshot):
-        if self.children is None:
-            self._parse_tree()
-        if snapshot in self.children.keys():
-            return self.children[snapshot]
-        return None
-
-    def _link(self, parent, child):
-        """ sets symlink from child to parent 
-            or deletes it if parent == None 
-        """
-        parent_file = os.path.join(self.mp, child, PARENT_LINK)
-        # remove parent link from child
-        if os.path.exists(parent_file):
-            os.remove(parent_file)
-        # link to parent
-        if parent is not None:
-            parent_path = os.path.join("..", "..", parent)
-            os.symlink(parent_path, parent_file)
-
-    def get_btrfs_root_snapshots_list(self, older_than=False):
-        """ get the list of available snapshots
-            If "older_then" is given (as a datetime) it will only include
-            snapshots that are older then the given date)
-        """
-        l = []
-        mp = self.mp
-        for e in os.listdir(mp):
-            if e.startswith(SNAP_PREFIX):
-                pos = len(SNAP_PREFIX)
-                d = e[pos:pos + 19]
-                try:
-                    date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")
-                except ValueError:
-                    # something is wrong
-                    raise Hell
-                if older_than == False or date < older_than:
-                    l.append(e)
-        return l
-
     def list(self):
         print("Available snapshots:")
-        print("  \n".join(self.get_btrfs_root_snapshots_list()))
+        print("  \n".join(snapshots.get_list()))
         return True
 
     def list_older_than(self, older_than):
         print("Available snapshots older than '%s':" % timefmt)
-        print("  \n".join(self.get_btrfs_root_snapshots_list(
+        print("  \n".join(snapshots.get_list(
             older_than=older_than)))
         return True
 
     def delete_older_than(self, older_than):
         res = True
-        for snap in self.get_btrfs_root_snapshots_list(
+        for snap in snapshots.get_list(
                 older_than=older_than):
             res &= self.delete(snap)
         return res
 
-    def set_default(self, snapshot_name):
+    def set_default(self, snapshot):
         """ set new default """
-        mp = self.mp
-        new_root = os.path.join(mp, snapshot_name)
+        snapshot = Snapshot(snapshot)
+        new_root = os.path.join(self.mp, snapshot.name)
         if (
                 os.path.isdir(new_root) and
-                snapshot_name.startswith(SNAP_PREFIX)):
-            default_root = os.path.join(mp, "@")
-            staging = os.path.join(mp, "@apt-btrfs-staging")
+                snapshot.name.startswith(SNAP_PREFIX)):
+            default_root = os.path.join(self.mp, "@")
+            staging = os.path.join(self.mp, "@apt-btrfs-staging")
             # TODO check whether staging already exists and prompt to remove it
 
             # find and store dpkg changes
             date, history = self._get_status()
-            self._store_changes("@", history)
+            Snapshot("@").changes = history
                 
             # snapshot the requested default so as not to remove it
             res = self.commands.btrfs_subvolume_snapshot(new_root, staging)
@@ -292,27 +201,25 @@ class AptBtrfsSnapshot(object):
                 raise Exception("Could not create snapshot")
 
             # make backup name
-            backup = os.path.join(mp, SNAP_PREFIX + self._get_now_str())
+            backup = os.path.join(self.mp, 
+                SNAP_PREFIX + self._get_now_str())
             # if backup name is already in use, wait a sec and try again
             if os.path.exists(backup):
                 time.sleep(1)
-                backup = os.path.join(mp, 
+                backup = os.path.join(self.mp, 
                     SNAP_PREFIX + self._get_now_str())
 
             # move everything into place
             os.rename(default_root, backup)
             os.rename(staging, default_root)
             
-            # clean-up @/etc/apt-btrfs-changes
-            changes_file = os.path.join(mp, "@", CHANGES_FILE)
-            if os.path.exists(changes_file):
-                os.remove(changes_file)
-            
-            # set root's new parent
-            self._link(snapshot_name, "@")
+            # remove @/etc/apt-btrfs-changes & set root's new parent
+            new_default = Snapshot("@")
+            new_default.changes = None
+            new_default.parent = snapshot.name
             
             print("Default changed to %s, please reboot for changes to take "
-                  "effect." % snapshot_name)
+                  "effect." % snapshot.name)
         else:
             print("You have selected an invalid snapshot. Please make sure "
                   "that it exists, and that its name starts with "
@@ -320,31 +227,30 @@ class AptBtrfsSnapshot(object):
         return True
 
     def rollback(self, how_many=1):
-        debug("rolling back", how_many)
-        back_to = "@"
+        back_to = Snapshot("@")
         for i in range(how_many):
-            back_to = self._get_parent(back_to)
-        debug("back to", back_to)
-        try:self.set_default(back_to)
-        except: time.sleep(20)
+            back_to = back_to.parent
+            if back_to is None:
+                raise Exception("Can't rollback that far")
+        self.set_default(back_to)
 
-    def delete(self, snapshot_name):
-        mp = self.mp
-        to_delete = os.path.join(mp, snapshot_name)
+    def delete(self, snapshot):
+        snapshot = Snapshot(snapshot)
+        to_delete = os.path.join(self.mp, snapshot.name)
         res = True
         if (
                 os.path.isdir(to_delete) and
-                snapshot_name.startswith(SNAP_PREFIX)):
+                snapshot.name.startswith(SNAP_PREFIX)):
             
             # correct parent links and combine change info
-            parent = self._get_parent(snapshot_name)
-            children = self._get_children(snapshot_name)
-            old_history = self._load_changes(snapshot_name)
+            parent = snapshot.parent
+            children = snapshot.children
+            old_history = snapshot.changes
             for child in children:
-                self._link(parent, child)
-                newer_history = self._load_changes(child)
+                child.parent = parent
+                newer_history = child.changes
                 combined = old_history + newer_history
-                self._store_changes(child, combined)
+                child.changes = combined
             
             res = self.commands.btrfs_delete_snapshot(to_delete)
         else:
