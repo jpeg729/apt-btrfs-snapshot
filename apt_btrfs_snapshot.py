@@ -163,6 +163,8 @@ class AptBtrfsSnapshot(object):
         return res
 
     def list(self):
+        # The function name will not clash with reserved keywords. It is only
+        # accessible via instance.list()
         print("Available snapshots:")
         print("  \n".join(snapshots.get_list()))
         return True
@@ -258,3 +260,66 @@ class AptBtrfsSnapshot(object):
                   "that it exists, and that its name starts with "
                   "\"%s\"" % SNAP_PREFIX)
         return res
+
+    def _print_up_to_junction(self, snapshot, column):
+        """ walks up the snapshot tree until the next one has more than one 
+            child, pretty printing each one
+        """
+        padding = "|  " * (column - 1)
+        pointer = ""
+        if column > 0:
+            pointer += "r--"
+        print('ouf', padding + pointer + str(snapshot))
+        if column > 0:
+            pointer = "|  "
+        while True:
+            snapshot = snapshot.parent
+            if snapshot == None or len(snapshot.children) > 1:
+                return snapshot
+            print(padding + pointer + str(snapshot))
+        
+    def tree(self):
+        """ pretty print a view of the tree """
+        to_print = [Snapshot("@")]
+        for snap in snapshots.get_list():
+            if snap not in snapshots.children.keys():
+                to_print.append(snap)
+        to_print.sort(key = lambda x: x.date)
+        print(to_print)
+        column = 1
+        junction_branches = {}
+        junction_columns = {}
+        while True:
+            try:
+                snapshot = to_print.pop()
+            except IndexError:
+                break
+            junction = self._print_up_to_junction(snapshot, column)
+            if junction in junction_branches.keys():
+                junction_branches[junction] -= 1
+                junction_columns[junction].append(column)
+                if junction_branches[junction] == 0:
+                    to_print.append(junction)
+                    print("branch junction join-up lines", junction_columns[junction])
+                    column = junction_columns[junction][0]
+            elif junction != None:
+                junction_branches[junction] = len(junction.children) - 1
+                junction_columns[junction] = [column]
+            
+            column += 1
+            
+if __name__ == '__main__':
+    import shutil
+    selfdir = os.path.dirname(os.path.abspath(__file__))
+    testdir = os.path.join(selfdir, "test")
+    # make a copy of a model btrfs subvol tree
+    model_root = os.path.join(testdir, "data", "model_root")
+    sandbox_root = os.path.join(testdir, "data", "root3")
+    if os.path.exists(sandbox_root):
+        shutil.rmtree(sandbox_root)
+    shutil.copytree(model_root, sandbox_root, symlinks=True)
+    # setup snapshot class
+    apt_btrfs = AptBtrfsSnapshot(
+            fstab=os.path.join(testdir, "data", "fstab"),
+            test_mp=sandbox_root)
+    apt_btrfs.tree()

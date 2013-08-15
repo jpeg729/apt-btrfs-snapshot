@@ -1,16 +1,5 @@
 Roadmap in order of planned implementation
    
- refactor
-    fstab -> separate file
-    AptBtrfsSnapshot has too many methods
- 
- list command
-    -leave as is
- 
- recent command
-    -lists only the last few ancestors with package changes
-    -optionally indicate the number of ancestors to list
-    
  tree view command
     -simple view with just names
     -view with change stats

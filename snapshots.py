@@ -112,6 +112,8 @@ class Snapshot(object):
             self.date = None
             if self.name != "@":
                 raise Hell # TODO better error message
+            else:
+                self.date = datetime.datetime.now()
         
     def __getattr__(self, attr):
         if attr == "parent":
