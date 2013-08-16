@@ -109,6 +109,35 @@ class AptBtrfsSnapshot(object):
         return datetime.datetime.now().replace(microsecond=0).isoformat(
             str('_'))
 
+    def _get_last_snapshot_time(self):
+        last_snapshot = datetime.datetime.fromtimestamp(0.0)
+        if self.test:
+            last_snapshot_file = '/tmp/apt_last_snapshot'
+        else:
+            last_snapshot_file = '/run/apt_last_snapshot'
+
+        if os.path.exists(last_snapshot_file):
+            try:
+                t = open(last_snapshot_file)
+                last_snapshot = \
+                datetime.datetime.fromtimestamp(float(t.readline()))
+            except:
+                # If we fail to read the timestamp for some reason, just return
+                # the default value silently
+                pass
+            finally:
+                t.close()
+        return last_snapshot
+
+    def _save_last_snapshot_time(self):
+        if self.test:
+            last_snapshot_file = '/tmp/apt_last_snapshot'
+        else:
+            last_snapshot_file = '/run/apt_last_snapshot'
+        f = open(last_snapshot_file, 'w')
+        f.write(str(time.time()))
+        f.close()
+
     def _get_status(self):
         
         parent = Snapshot("@").parent
@@ -182,6 +211,17 @@ class AptBtrfsSnapshot(object):
     
     def create(self, tag=""):
         """ create a new apt-snapshot of @, tagging it if a tag is given """
+        if 'APT_NO_SNAPSHOTS' in os.environ:
+            print("apt-btrfs-snapshot: Disabled, skipping creation")
+            return True
+        last = self._get_last_snapshot_time()
+
+        # If there is a recent snapshot and no tag supplied, skip creation
+        if tag == "" \
+        and last > datetime.datetime.now() - datetime.timedelta(seconds=60):
+            print("A recent snapshot already exists: %s" % last)
+            return True
+        
         # make snapshot
         snap_id = SNAP_PREFIX + self._get_now_str() + tag
         res = self.commands.btrfs_subvolume_snapshot(
@@ -195,6 +235,7 @@ class AptBtrfsSnapshot(object):
         # set root's new parent
         Snapshot("@").parent = snap_id
         
+        self._save_last_snapshot_time()
         return res
     
     def tag(self, snapshot, tag):

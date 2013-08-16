@@ -36,8 +36,10 @@ from snapshots import (
 )
 
 
-def extract_stdout(mock_stdout):
+def extract_stdout(mock_stdout, last_line_only=False):
     out = ""
+    if last_line_only == True:
+        return mock_stdout.method_calls[-2][1][0]
     for call in mock_stdout.method_calls:
         out += call[1][0]
     return out
@@ -150,7 +152,10 @@ class TestSnapshotting(unittest.TestCase):
         try: print(self.output)
         except: pass
 
-    def test_btrfs_create_snapshot(self):
+    @mock.patch('sys.stdout')
+    def test_btrfs_create_snapshot(self, mock_stdout):
+        mock_stdout.side_effect = StringIO()
+        os.remove('/tmp/apt_last_snapshot')
         res = self.apt_btrfs.create()
         # check results
         self.assertTrue(res)
@@ -166,6 +171,19 @@ class TestSnapshotting(unittest.TestCase):
         self.assertTrue(os.path.exists(changes_file))
         history = pickle.load(open(changes_file, "rb"))
         self.assertEqual(len(history['install']), 10)
+        # test skipping if recent
+        res = self.apt_btrfs.create()
+        output = extract_stdout(mock_stdout)
+        expected = "A recent snapshot already exists: "
+        self.assertTrue(output.startswith(expected))
+        # test disabling by shell variable
+        os.environ['APT_NO_SNAPSHOTS'] = '1'
+        res = self.apt_btrfs.create()
+        del os.environ['APT_NO_SNAPSHOTS']
+        output = extract_stdout(mock_stdout, last_line_only=True)
+        expected = "apt-btrfs-snapshot: Disabled, skipping creation"
+        self.assertTrue(output.startswith(expected))
+        
 
     def test_btrfs_delete_snapshot(self):
         which = SNAP_PREFIX + "2013-07-31_00:00:04"

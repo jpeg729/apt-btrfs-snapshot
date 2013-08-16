@@ -2,7 +2,6 @@ Roadmap in order of planned implementation
    
  factor in stuff from Chousuke
     -snapshot frequency throttling
-    -snapshot disabling by shell var presence
     
  set_default
     check whether staging already exists and prompt to remove it
@@ -10,7 +9,7 @@ Roadmap in order of planned implementation
  used space cleaning
     -command line clean [apt|tmp|crash] option
  
- add new commands show and tag to command line script
+ write tests for command line script
  
  delete_older_than 
     -to keep tree intact
@@ -27,13 +26,8 @@ Roadmap in order of planned implementation
  
 Issues/bugs/questions
  
- DpkgHistory calls from AptBtrfsSnapshot.py
-    -since date is usually known except when there is no parent link
-    - skip? 
-    - or see if there are other snapshots without parent links?
-    - or prompt for a date
- 
- apt-btrfs._parse should? take into account snapshots with no info
-    -only to ease the transition
+ convert command
+    -converts a set of old style snapshots, adding parent and change info.
+    -assumes a branchless tree
  
  
