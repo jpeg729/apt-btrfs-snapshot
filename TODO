@@ -1,10 +1,6 @@
 Roadmap in order of planned implementation
    
- snapshots.py
-    gracefully ignore snapshots with badly formed dates.
- 
  tag snapshot
-    append/replace tag after the date part of the name
     -add tag option to "create" command
     -set_default and rollback should prompt for tag if not given one
     -rollback option -t to specify tag
@@ -18,6 +14,8 @@ Roadmap in order of planned implementation
  
  used space cleaning
     -command line clean [apt|tmp|crash] option
+ 
+ add new commands show and tag to command line script
  
  delete_older_than 
     -to keep tree intact

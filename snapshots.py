@@ -57,7 +57,11 @@ def get_list(older_than=False):
     return older
 
 def first_common_ancestor(younger, older):
-    """ find first common ancestor """
+    """ find first common ancestor 
+        stores previous results for speed
+    """
+    global common_ancestors
+
     younger = Snapshot(younger)
     older = Snapshot(older)
     
@@ -65,7 +69,6 @@ def first_common_ancestor(younger, older):
         younger, older = older, younger
     key = younger.name + older.name
     if key in common_ancestors:
-        #print('found', key)
         return common_ancestors[key]
     
     while True:
@@ -73,7 +76,6 @@ def first_common_ancestor(younger, older):
             younger, older = older, younger
         younger = younger.parent
         if younger == None or younger == older:
-            global common_ancestors
             common_ancestors[key] = younger
             return younger
             
@@ -83,8 +85,9 @@ def _make_list():
     global list_of
     list_of = []
     for e in os.listdir(mp):
-        if e.startswith(SNAP_PREFIX) and len(e) >= len(SNAP_PREFIX) + 19:
-            pos = len(SNAP_PREFIX)
+        pos = len(SNAP_PREFIX)
+        if e.startswith(SNAP_PREFIX) and len(e) >= pos + 19:
+            
             d = e[pos:pos + 19]
             try:
                 date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")

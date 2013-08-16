@@ -331,5 +331,18 @@ class TestSnapshotting(unittest.TestCase):
 """
         self.assertEqual(output, expected)
 
+    def test_tag(self):
+        self.apt_btrfs.tag("@apt-snapshot-2013-07-31_00:00:04", "tag")
+        dirlist = os.listdir(self.sandbox_root)
+        self.assertTrue('@apt-snapshot-2013-07-31_00:00:04-tag' in dirlist)
+        
+        self.apt_btrfs.tag("@apt-snapshot-2013-07-31_12:53:16-raring-to-go",
+            "tag")
+        dirlist = os.listdir(self.sandbox_root)
+        self.assertIn('@apt-snapshot-2013-07-31_12:53:16-tag', dirlist)
+        self.assertNotIn("@apt-snapshot-2013-07-31_12:53:16-raring-to-go",
+            dirlist)
+        
+
 if __name__ == "__main__":
     unittest.main()

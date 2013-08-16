@@ -145,10 +145,11 @@ class AptBtrfsSnapshot(object):
         return output
     
     def status(self):
+        """ show current root's parent and recent changes """
         return self.show("@")
     
     def show(self, snapshot):
-
+        """ show details pertaining to given snapshot """
         snapshot = Snapshot(snapshot)
         if snapshot.name == "@":
             parent, changes = self._get_status()
@@ -187,13 +188,23 @@ class AptBtrfsSnapshot(object):
             os.path.join(self.mp, snap_id))
         
         # find and store dpkg changes
-        date, history = self._get_status()
+        parent, history = self._get_status()
         Snapshot(snap_id).changes = history
         
         # set root's new parent
         Snapshot("@").parent = snap_id
         
         return res
+    
+    def tag(self, snapshot, tag):
+        """ Adds/replaces the tag for the given snapshot """
+        if tag:
+            tag = "-" + tag
+        pos = len(SNAP_PREFIX)
+        old_snap = os.path.join(self.mp, snapshot)
+        new_snap = os.path.join(self.mp, snapshot[:pos + 19] + tag)
+        os.rename(old_snap, new_snap)
+        return True
 
     def list(self):
         # The function name will not clash with reserved keywords. It is only
