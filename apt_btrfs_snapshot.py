@@ -109,6 +109,13 @@ class AptBtrfsSnapshot(object):
         return datetime.datetime.now().replace(microsecond=0).isoformat(
             str('_'))
 
+    def _parse_older_than_to_datetime(self, timefmt):
+        now = datetime.datetime.now()
+        if not timefmt.endswith("d"):
+            raise Exception("Please specify time in days (e.g. 10d)")
+        days = int(timefmt[:-1])
+        return now - datetime.timedelta(days)
+        
     def _get_last_snapshot_time(self):
         last_snapshot = datetime.datetime.fromtimestamp(0.0)
         if self.test:
@@ -263,7 +270,8 @@ class AptBtrfsSnapshot(object):
         print("  \n".join(snapshots.get_list()))
         return True
 
-    def list_older_than(self, older_than):
+    def list_older_than(self, timefmt):
+        older_than = self._parse_older_than_to_datetime(timefmt)
         print("Available snapshots older than '%s':" % timefmt)
         print("  \n".join(snapshots.get_list(
             older_than=older_than)))
@@ -355,7 +363,8 @@ class AptBtrfsSnapshot(object):
                   "\"%s\"" % SNAP_PREFIX)
         return res
     
-    def delete_older_than(self, older_than):
+    def delete_older_than(self, timefmt):
+        older_than = self._parse_older_than_to_datetime(timefmt)
         res = True
         list_of = snapshots.get_list(older_than=older_than)
         list_of.sort(key = lambda x: x.date, reverse = True)
@@ -537,3 +546,6 @@ if __name__ == '__main__':
             fstab=os.path.join(testdir, "data", "fstab"),
             test_mp=sandbox_root)
     apt_btrfs.tree()
+    for k,v in apt_btrfs.__class__.__dict__.items():
+        if not k.startswith("_"):
+            print(k)

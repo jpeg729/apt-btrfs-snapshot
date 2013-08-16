@@ -23,6 +23,7 @@ import datetime
 import logging
 import os
 import sys
+import fcntl
 
 import gettext
 from gettext import gettext as _
@@ -36,19 +37,18 @@ from apt_btrfs_snapshot import (
 class ReportCalls(object):
     def make_skeleton(self, attr):
         def skeleton(*args, **kwargs):
-            print("Called '%s' with args %s and kwargs %s" % (attr,  args, kwargs))
+            out = attr + "("
+            args = [str(i) for i in args]
+            out += ", ".join(args)
+            for k, v in kwargs.items():
+                out += ", %s=%s" % (k, v)
+            out += ")"
+            print("Function call: %s" % out)
+            return True
         return skeleton
     
     def __getattr__(self, attr):
         return self.make_skeleton(attr)
-        
-
-def _parse_older_than_to_datetime(self, timefmt):
-    now = datetime.datetime.now()
-    if not timefmt.endswith("d"):
-        raise Exception("Please specify time in days (e.g. 10d)")
-    days = int(timefmt[:-1])
-    return now - datetime.timedelta(days)
 
 
 if __name__ == "__main__":
@@ -69,13 +69,18 @@ if __name__ == "__main__":
     command.set_defaults(command="supported")
     # list
     command = subparser.add_parser(
-        "list", help=_("List the last n snapshots, default=10"))
+        "list", help=_("List the available snapshots"))
     command.add_argument("-n", "--number", default=10, type=int)
     command.set_defaults(command="list")
     # status
     command = subparser.add_parser(
         "status", help=_("Get current state"))
     command.set_defaults(command="status")
+    # show
+    command = subparser.add_parser(
+        "show", help=_("Show details of snapshot"))
+    command.add_argument("snapshot")
+    command.set_defaults(command="show")
     # create
     command = subparser.add_parser(
         "create", help=_("Create a new snapshot"))
@@ -114,6 +119,14 @@ if __name__ == "__main__":
         "delete-older-than", help=_("Delete snapshots older than N days"))
     command.add_argument("time")
     command.set_defaults(command="delete-older-than")
+    # clean
+    command = subparser.add_parser(
+        "clean", help=_("Clean the apt cache of the snapshots"))
+    command.set_defaults(command="clean")
+    # tree
+    command = subparser.add_parser(
+        "tree", help=_("Tree view of snapshots"))
+    command.set_defaults(command="tree")
 
     # parse args
     args = parser.parse_args()
@@ -141,6 +154,20 @@ if __name__ == "__main__":
         print(_("Sorry, your system lacks support for the snapshot feature"))
         sys.exit(1)
 
+    # Make sure there is only one instance at a time
+    if args.test:
+        pid_file = '/tmp/apt-btrfs-snapshot.pid'
+    else:
+        pid_file = '/var/run/apt-btrfs-snapshot.pid'
+    fp = open(pid_file, 'w')
+    try:
+        fcntl.lockf(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fp.write(str(os.getpid()))
+    except IOError:
+        # another instance is running
+        print("Program already running")
+        sys.exit(0)
+    
     if args.test:
         apt_btrfs = ReportCalls()
     else:
@@ -155,9 +182,11 @@ if __name__ == "__main__":
     elif args.command == "tag":
         res = apt_btrfs.tag(args.snapshot, args.tag)
     elif args.command == "list":
-        res = apt_btrfs.list(args.number)
+        res = apt_btrfs.list()
     elif args.command == "status":
         res = apt_btrfs.status()
+    elif args.command == "show":
+        res = apt_btrfs.show(args.snapshot)
     elif args.command == "set-default":
         res = apt_btrfs.set_default(args.snapshot, args.tag)
     elif args.command == "rollback":
@@ -165,11 +194,13 @@ if __name__ == "__main__":
     elif args.command == "delete":
         res = apt_btrfs.delete(args.snapshot)
     elif args.command == "list-older-than":
-        time = _parse_older_than_to_datetime(args.time)
-        res = apt_btrfs.list_older_than(time)
+        res = apt_btrfs.list_older_than(args.time)
     elif args.command == "delete-older-than":
-        time = _parse_older_than_to_datetime(args.time)
-        res = apt_btrfs.delete_older_than(time)
+        res = apt_btrfs.delete_older_than(args.time)
+    elif args.command == "clean":
+        res = apt_btrfs.clean()
+    elif args.command == "tree":
+        res = apt_btrfs.tree()
     else:
         print(_("ERROR: Unhandled command: '%s'") % args.command)
 
@@ -179,6 +210,18 @@ if __name__ == "__main__":
     else:
         sys.exit(1)
 
-
-
+"""
+x status
+x rollback
+x tree
+x tag
+x list_older_than
+x create
+x show
+x list
+x delete_older_than
+x clean
+x set_default
+x delete
+"""
 
