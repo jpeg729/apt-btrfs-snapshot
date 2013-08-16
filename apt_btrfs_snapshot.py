@@ -231,12 +231,12 @@ class AptBtrfsSnapshot(object):
             os.path.join(self.mp, "@"),
             os.path.join(self.mp, snap_id))
         
+        # set root's new parent
+        Snapshot("@").parent = snap_id
+        
         # find and store dpkg changes
         parent, history = self._get_status()
         Snapshot(snap_id).changes = history
-        
-        # set root's new parent
-        Snapshot("@").parent = snap_id
         
         self._save_last_snapshot_time()
         return res
@@ -269,13 +269,6 @@ class AptBtrfsSnapshot(object):
             older_than=older_than)))
         return True
 
-    def delete_older_than(self, older_than):
-        res = True
-        for snap in snapshots.get_list(
-                older_than=older_than):
-            res &= self.delete(snap)
-        return res
-    
     def _prompt_for_tag(self):
         print("You haven't specified a tag for the snapshot that will be created from the current state.")
         tag = raw_input("Please enter a tag: ")
@@ -353,20 +346,22 @@ class AptBtrfsSnapshot(object):
                 snapshot.name.startswith(SNAP_PREFIX)):
             
             # correct parent links and combine change info
-            parent = snapshot.parent
-            children = snapshot.children
-            old_history = snapshot.changes
-            for child in children:
-                child.parent = parent
-                newer_history = child.changes
-                combined = old_history + newer_history
-                child.changes = combined
+            snapshot.will_delete()
             
             res = self.commands.btrfs_delete_snapshot(to_delete)
         else:
             print("You have selected an invalid snapshot. Please make sure "
                   "that it exists, and that its name starts with "
                   "\"%s\"" % SNAP_PREFIX)
+        return res
+    
+    def delete_older_than(self, older_than):
+        res = True
+        list_of = snapshots.get_list(older_than=older_than)
+        list_of.sort(key = lambda x: x.date, reverse = True)
+        for snap in list_of:
+            if len(snap.children) < 2 and snap.tag == "":
+                res &= self.delete(snap)
         return res
     
     def tree(self):
@@ -542,10 +537,3 @@ if __name__ == '__main__':
             fstab=os.path.join(testdir, "data", "fstab"),
             test_mp=sandbox_root)
     apt_btrfs.tree()
-    Snapshot("@apt-snapshot-2013-08-09_21:06:00").parent = None
-    # reinitialize snapshots global variables
-    snapshots.setup(sandbox_root)
-    apt_btrfs.tree()
-    apt_btrfs.status()
-    apt_btrfs.show("@apt-snapshot-2013-08-01_19:53:16")
-    apt_btrfs.show("@apt-snapshot-2013-07-31_12:53:16-raring-to-go")

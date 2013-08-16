@@ -94,17 +94,6 @@ class TestFstab(unittest.TestCase):
         del apt_btrfs
         self.assertTrue(commands.umount.called)
         self.assertFalse(os.path.exists(mp))
-
-    # TODO move to testfile for apt-btrfs-snapshot and re-enable
-    def test_parser_older_than_to_datetime(self):
-        return
-        apt_btrfs = AptBtrfsSnapshot(
-            fstab=os.path.join(self.testdir, "data", "fstab"),
-            test_mp=self.sandbox_root)
-        t = apt_btrfs._parse_older_than_to_datetime("5d")
-        e = datetime.datetime.now() - datetime.timedelta(5)
-        # Check that t is within a second of e
-        self.assertTrue(e - t < datetime.timedelta(0, 1))
     
 
 class TestSnapshotting(unittest.TestCase):
@@ -355,7 +344,7 @@ class TestSnapshotting(unittest.TestCase):
 """
         self.assertEqual(output, expected)
         
-        Snapshot("@apt-snapshot-2013-08-09_21:06:00").parent = None
+        Snapshot(SNAP_PREFIX + "2013-08-09_21:06:00").parent = None
         # reinitialize snapshots global variables.
         snapshots.setup(self.sandbox_root)
         self.apt_btrfs.tree()
@@ -398,7 +387,7 @@ class TestSnapshotting(unittest.TestCase):
         self.assertIn(SNAP_PREFIX + "2013-07-31_00:00:04-tag", dirlist)
         self.assertNotIn(SNAP_PREFIX + "2013-07-31_00:00:04", dirlist)
         
-        self.apt_btrfs.tag("@apt-snapshot-2013-07-31_12:53:16-raring-to-go",
+        self.apt_btrfs.tag(SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go",
             "-tag")
         dirlist = os.listdir(self.sandbox_root)
         self.assertIn(SNAP_PREFIX + "2013-07-31_12:53:16-tag", dirlist)
@@ -419,10 +408,33 @@ class TestSnapshotting(unittest.TestCase):
         path = os.path.join(self.sandbox_root, "@/var/cache/apt/archives")
         self.assertTrue(os.path.exists(os.path.join(path, "a.deb")))
         path = os.path.join(self.sandbox_root, 
-            "@apt-snapshot-2013-08-07_18:00:42", "var/cache/apt/archives")
+            SNAP_PREFIX + "2013-08-07_18:00:42", "var/cache/apt/archives")
         self.assertFalse(os.path.exists(os.path.join(path, "a.deb")))
         self.assertFalse(os.path.exists(os.path.join(path, "b.deb")))
         self.assertTrue(os.path.exists(os.path.join(path, "other_file")))
+
+    def test_delete_older_than(self):
+        old_dirlist = os.listdir(self.sandbox_root)
+        self.apt_btrfs.delete_older_than("2013-08-07_18:00:42")
+        dirlist = os.listdir(self.sandbox_root)
+        self.assertEqual(len(dirlist), len(old_dirlist) - 4)
+        self.assertNotIn(SNAP_PREFIX + "2013-07-26_14:50:53", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-06_00:29:05", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-05_04:30:58", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-02_00:24:00", dirlist)
+        old_dirlist = os.listdir(self.sandbox_root)
+        self.apt_btrfs.delete_older_than("2013-08-09_21:09:40")
+        dirlist = os.listdir(self.sandbox_root)
+        self.assertEqual(len(dirlist), len(old_dirlist) - 8)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-09_21:08:01", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-09_21:06:32", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-09_21:06:00", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-09_21:05:56", dirlist)
+        
+        self.assertNotIn(SNAP_PREFIX + "2013-08-09_21:04:37", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-08_18:44:47", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-07_18:00:42", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-01_19:53:16", dirlist)
 
 
 if __name__ == "__main__":

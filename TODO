@@ -1,24 +1,12 @@
 Roadmap in order of planned implementation
    
- write tests for command line script
- 
- delete_older_than 
-    -to keep tree intact
-    - should not delete tagged snapshots
-    - nor snapshots with multiple children 
- 
- testing for apt-btrfs-snapshot too
- 
  single instance
     -http://stackoverflow.com/questions/380870/python-single-instance-of-program
     -3rd answer
  
  update man page
  
-Issues/bugs/questions
- 
  convert command
     -converts a set of old style snapshots, adding parent and change info.
     -assumes a branchless tree
- 
  

@@ -36,7 +36,6 @@ mp = None
 
 list_of = None
 parents, children, orphans = {}, {}, []
-common_ancestors = {}
 
 
 def setup(mountpoint):
@@ -51,32 +50,23 @@ def get_list(older_than=False):
         If "older_than" is given (as a datetime) it will only include
         snapshots that are older then the given date)
     """
+    if isinstance(older_than, basestring):
+        older_than = datetime.datetime.strptime(older_than, "%Y-%m-%d_%H:%M:%S")
     if older_than == False:
         return list_of[:]
     older = [s for s in list_of if s.date < older_than]
     return older
 
 def first_common_ancestor(younger, older):
-    """ find first common ancestor 
-        stores previous results for speed
-    """
-    global common_ancestors
-
+    """ find first common ancestor """
     younger = Snapshot(younger)
     older = Snapshot(older)
-    
-    if younger.date < older.date:
-        younger, older = older, younger
-    key = younger.name + older.name
-    if key in common_ancestors:
-        return common_ancestors[key]
     
     while True:
         if younger.date < older.date:
             younger, older = older, younger
         younger = younger.parent
         if younger == None or younger == older:
-            common_ancestors[key] = younger
             return younger
             
 
@@ -102,7 +92,7 @@ def _parse_tree():
     children = {}
     orphans = []
     snapshots = get_list()
-    snapshots.append("@")
+    snapshots.append(Snapshot("@"))
     for snapshot in snapshots:
         name = str(snapshot)
         parent_file = os.path.join(mp, name, PARENT_LINK)
@@ -147,10 +137,12 @@ class Snapshot(object):
             return self._get_children()
         if attr == "changes":
             return self._load_changes()
+        if attr == "tag":
+            return self._get_tag()
     
     def __setattr__(self, attr, value):
         if attr == "parent":
-            self._link(value)
+            self._set_parent(value)
         elif attr == "changes":
             self._store_changes(value)
         else:
@@ -198,16 +190,60 @@ class Snapshot(object):
         if self.name in children.keys():
             return children[self.name]
         return []
+    
+    def _get_tag(self):
+        pos = len(SNAP_PREFIX)
+        if len(self.name) > pos + 19:
+            return self.name[pos + 20:]
+        return ""
 
-    def _link(self, parent):
+    def _set_parent(self, parent):
         """ sets symlink from child to parent 
             or deletes it if parent == None 
         """
         parent_file = os.path.join(mp, self.name, PARENT_LINK)
-        # remove parent link from child
+        # remove parent link from self
         if os.path.lexists(parent_file):
             os.remove(parent_file)
         # link to parent
         if parent is not None:
             parent_path = os.path.join(PARENT_DOTS, str(parent))
             os.symlink(parent_path, parent_file)
+
+    def will_delete(self):
+        """ correct parent links and change info for a snapshot about to be
+            deleted. Does internal housekeeping as well.
+            A messy solution needed for delete_older_than to work.
+        """
+        # correct parent links and combine change info
+        parent = self.parent
+        kids = self.children
+        old_history = self.changes
+        
+        # clean-ups
+        list_of.remove(self)
+        if self.name in children:
+            del children[self.name]
+        if self.name in parents:
+            del parents[self.name]
+        if parent != None and parent.name in children:
+            children[parent.name].remove(self)
+        
+        for child in kids:
+            child.parent = parent
+            
+            # housekeeping
+            parents[child.name] = parent
+            if parent != None:
+                children[parent.name].append(child)
+            
+            newer_history = child.changes
+            if old_history == None:
+                combined = newer_history
+            elif newer_history == None:
+                combined = None
+            else:
+                combined = old_history + newer_history
+            child.changes = combined
+
+

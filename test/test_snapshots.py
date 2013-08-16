@@ -16,6 +16,7 @@ import shutil
 import time
 import cPickle as pickle
 import types
+import random
 
 sys.path.insert(0, "..")
 sys.path.insert(0, ".")
@@ -64,7 +65,7 @@ class TestSnapshot(unittest.TestCase):
         snapshots._parse_tree()
         self.assertEqual(len(snapshots.orphans), 3)
 
-    def test_link(self):
+    def test_set_parent(self):
         child = SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go"
         Snapshot(child).parent = None
         parent_file = os.path.join(self.sandbox_root, 
@@ -84,17 +85,26 @@ class TestSnapshot(unittest.TestCase):
         
     def test_list_snapshots_older_than(self):
         older_than = datetime.datetime(2013, 8, 3)
-        res = snapshots.get_list(
-            older_than=older_than)
+        res = snapshots.get_list(older_than=older_than)
         self.assertEqual(len(res), 5)
+        for i in res:
+            self.assertTrue(i.date < older_than)
         
         older_than = datetime.datetime(2013, 7, 27)
-        res = snapshots.get_list(
-            older_than=older_than)
+        res = snapshots.get_list(older_than=older_than)
+        for i in res:
+            self.assertTrue(i.date < older_than)
         self.assertEqual(len(res), 1)
         
         res = snapshots.get_list()
         self.assertEqual(len(res), 16)
+        
+        older_than = "2013-08-07_18:00:42"
+        res = snapshots.get_list(older_than=older_than)
+        older_than = datetime.datetime(2013, 8, 7, 18, 0, 42)
+        self.assertEqual(len(res), 8)
+        for i in res:
+            self.assertTrue(i.date < older_than)
     
     def test_hash_eq_and_dictionary_keys(self):
         snapname = SNAP_PREFIX + "2013-07-26_14:50:53"
@@ -107,7 +117,28 @@ class TestSnapshot(unittest.TestCase):
         d[snapshot] = 3
         self.assertIn(Snapshot(snapname), d)
         self.assertEqual(d[Snapshot(snapname)], d[snapshot], 3)
+    
+    def test_tag(self):
+        tagged = Snapshot(SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go")
+        not_tagged = Snapshot(SNAP_PREFIX + "2013-07-26_14:50:53")
+        self.assertEqual(tagged.tag, "raring-to-go")
+        self.assertEqual(not_tagged.tag, "")
 
+    def test_will_delete(self):
+        list_of = snapshots.list_of
+        random.shuffle(list_of)
+        for snap in list_of:
+            parent = snap.parent
+            children = snap.children
+            snap.will_delete()
+            self.assertNotIn(snap, snapshots.list_of)
+            self.assertNotIn(snap.name, snapshots.parents)
+            self.assertNotIn(snap.name, snapshots.children)
+            for child in children:
+                self.assertEqual(child.parent, parent)
+                if parent != None:
+                    self.assertIn(child, parent.children)
+            snapshots.setup(self.sandbox_root)
 
 
 if __name__ == "__main__":
