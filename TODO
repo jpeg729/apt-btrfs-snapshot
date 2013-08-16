@@ -1,11 +1,5 @@
 Roadmap in order of planned implementation
    
- factor in stuff from Chousuke
-    -snapshot frequency throttling
-    
- set_default
-    check whether staging already exists and prompt to remove it
- 
  used space cleaning
     -command line clean [apt|tmp|crash] option
  

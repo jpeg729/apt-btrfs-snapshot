@@ -155,7 +155,8 @@ class TestSnapshotting(unittest.TestCase):
     @mock.patch('sys.stdout')
     def test_btrfs_create_snapshot(self, mock_stdout):
         mock_stdout.side_effect = StringIO()
-        os.remove('/tmp/apt_last_snapshot')
+        if os.path.exists('/tmp/apt_last_snapshot'):
+            os.remove('/tmp/apt_last_snapshot')
         res = self.apt_btrfs.create()
         # check results
         self.assertTrue(res)
@@ -179,11 +180,16 @@ class TestSnapshotting(unittest.TestCase):
         # test disabling by shell variable
         os.environ['APT_NO_SNAPSHOTS'] = '1'
         res = self.apt_btrfs.create()
-        del os.environ['APT_NO_SNAPSHOTS']
         output = extract_stdout(mock_stdout, last_line_only=True)
-        expected = "apt-btrfs-snapshot: Disabled, skipping creation"
+        expected = "Shell variable APT_NO_SNAPSHOTS found, skipping creation"
         self.assertTrue(output.startswith(expected))
-        
+        # shell var AND tag supplied -> create anyway
+        res = self.apt_btrfs.create("tag")
+        output = extract_stdout(mock_stdout, last_line_only=True)
+        expected = "Shell variable APT_NO_SNAPSHOTS found, but tag supplied, "
+        expected += "creating snapshot"
+        self.assertTrue(output.startswith(expected))
+        del os.environ['APT_NO_SNAPSHOTS']
 
     def test_btrfs_delete_snapshot(self):
         which = SNAP_PREFIX + "2013-07-31_00:00:04"
@@ -260,6 +266,16 @@ class TestSnapshotting(unittest.TestCase):
             if i not in old_listdir:
                 pos = len(SNAP_PREFIX)
                 self.assertEqual(i[pos+19:], "-tag")
+
+    @mock.patch('sys.stdout')
+    def test_btrfs_set_default_tag_prompting(self, mock_stdout):
+        mock_stdout.side_effect = StringIO()
+        os.mkdir(os.path.join(self.sandbox_root, "@apt-btrfs-staging"))
+        message = "Reserved directory @apt-btrfs-staging exists\n"
+        message += "Please remove from btrfs volume root before trying again"
+        with self.assertRaisesRegexp(Exception, message):
+            res = self.apt_btrfs.set_default(SNAP_PREFIX + \
+                "2013-08-01_19:53:16", "tag")
 
     @mock.patch('sys.stdout')
     def test_rollback_one(self, mock_stdout):

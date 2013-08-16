@@ -211,9 +211,12 @@ class AptBtrfsSnapshot(object):
     
     def create(self, tag=""):
         """ create a new apt-snapshot of @, tagging it if a tag is given """
-        if 'APT_NO_SNAPSHOTS' in os.environ:
-            print("apt-btrfs-snapshot: Disabled, skipping creation")
+        if 'APT_NO_SNAPSHOTS' in os.environ and tag == "":
+            print("Shell variable APT_NO_SNAPSHOTS found, skipping creation")
             return True
+        elif 'APT_NO_SNAPSHOTS' in os.environ and tag != "":
+            print("Shell variable APT_NO_SNAPSHOTS found, but tag supplied, "
+                "creating snapshot")
         last = self._get_last_snapshot_time()
 
         # If there is a recent snapshot and no tag supplied, skip creation
@@ -292,8 +295,11 @@ class AptBtrfsSnapshot(object):
                 snapshot.name.startswith(SNAP_PREFIX)):
             default_root = os.path.join(self.mp, "@")
             staging = os.path.join(self.mp, "@apt-btrfs-staging")
-            # TODO check whether staging already exists and prompt to remove it
-
+            if os.path.lexists(staging):
+                raise Exception("Reserved directory @apt-btrfs-staging "
+                    "exists\nPlease remove from btrfs volume root before "
+                    "trying again")
+            
             # find and store dpkg changes
             date, history = self._get_status()
             Snapshot("@").changes = history
