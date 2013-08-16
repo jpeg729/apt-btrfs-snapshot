@@ -1,8 +1,8 @@
 Roadmap in order of planned implementation
    
- tree view command
-    -add change stats for @
-    
+ snapshots.py
+    gracefully ignore snapshots with badly formed dates.
+ 
  tag snapshot
     append/replace tag after the date part of the name
     -add tag option to "create" command

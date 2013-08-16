@@ -125,18 +125,13 @@ class AptBtrfsSnapshot(object):
                 var_location = var_location)
         else:
             history = DpkgHistory(since = date_parent)
-        return date_parent, history
+        return parent, history
 
-    def status(self):
-        date_parent, history = self._get_status()
-        if date_parent is None:
-            print("Cannot find a parent snapshot. The dpkg logs mention:")
-        else:
-            print("Since the parent snapshot taken on %s, there have been:" % 
-                date_parent)
+    def _prettify_changes(self, history, i_indent=" ", s_indent="  "):
+        output = []
         for op in ("install", "auto-install", "upgrade", "remove", "purge"):
             if len(history[op]) > 0:
-                print("%d %ss:" % (len(history[op]), op))
+                output.append("%s%ss (%d):" % (i_indent, op, len(history[op])))
                 packages = []
                 for p, v in history[op]:
                     packages.append(p)
@@ -144,9 +139,45 @@ class AptBtrfsSnapshot(object):
                 if sys.stdout.isatty():
                     # if we are in a terminal, wrap text to match its width
                     rows, columns = os.popen('stty size', 'r').read().split()
-                    packages = textwrap.fill(packages, width=int(columns), 
-                        initial_indent='  ', subsequent_indent='  ')
-                print(packages)
+                    packages = textwrap.wrap(packages, width=int(columns), 
+                        initial_indent=s_indent, subsequent_indent=s_indent)
+                output.extend(packages)
+        return output
+    
+    def status(self):
+        return self.show("@")
+    
+    def show(self, snapshot):
+
+        snapshot = Snapshot(snapshot)
+        if snapshot.name == "@":
+            parent, changes = self._get_status()
+        else:
+            parent, changes = snapshot.parent, snapshot.changes
+        
+        fca = snapshots.first_common_ancestor("@", snapshot)
+        mainline = (fca == snapshot) and 'Is' or "Isn't"
+        mainline = "%s an ancestor of @" % mainline
+        
+        pretty_history = self._prettify_changes(changes)
+
+        if parent == None:
+            parent = "unknown"
+        else:
+            parent = parent.name
+        
+        title = "Snapshot %s" % snapshot.name
+        print(title)
+        print('-' * len(title))
+        if snapshot.name != "@":
+            print(mainline)
+        print("Parent: %s" % parent)
+        if parent == "unknown" and snapshot.name == "@":
+            print("dpkg history shown for the last 30 days")
+        print("dpkg history:")
+        print("\n".join(pretty_history))
+        
+        return True
     
     def create(self):
         # make snapshot
@@ -428,3 +459,5 @@ if __name__ == '__main__':
     snapshots.setup(sandbox_root)
     apt_btrfs.tree()
     apt_btrfs.status()
+    apt_btrfs.show("@apt-snapshot-2013-08-01_19:53:16")
+    apt_btrfs.show("@apt-snapshot-2013-07-31_12:53:16-raring-to-go")

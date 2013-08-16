@@ -58,7 +58,9 @@ def get_list(older_than=False):
 
 def first_common_ancestor(younger, older):
     """ find first common ancestor """
-    global common_ancestors
+    younger = Snapshot(younger)
+    older = Snapshot(older)
+    
     if younger.date < older.date:
         younger, older = older, younger
     key = younger.name + older.name
@@ -71,6 +73,7 @@ def first_common_ancestor(younger, older):
             younger, older = older, younger
         younger = younger.parent
         if younger == None or younger == older:
+            global common_ancestors
             common_ancestors[key] = younger
             return younger
             
