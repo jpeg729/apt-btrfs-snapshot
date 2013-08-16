@@ -63,7 +63,7 @@ def first_common_ancestor(younger, older):
         younger, older = older, younger
     key = younger.name + older.name
     if key in common_ancestors:
-        print('found', key)
+        #print('found', key)
         return common_ancestors[key]
     
     while True:
@@ -93,7 +93,7 @@ def _make_list():
             list_of.append(Snapshot(e))
 
 def _parse_tree():
-    global parents, children, orphans, junctions
+    global parents, children, orphans
     parents = {}
     children = {}
     orphans = []
@@ -113,7 +113,6 @@ def _parse_tree():
             children[parent].append(snapshot)
         else:
             children[parent] = [snapshot]
-    junctions = [s for s in list_of if len(s.children) > 1]
 
 
 class Snapshot(object):
@@ -144,10 +143,6 @@ class Snapshot(object):
             return self._get_children()
         if attr == "changes":
             return self._load_changes()
-        if attr == "ancestor_junctions":
-            return self._get_ancestor_junctions()
-        if attr == "origin":
-            return self._get_origin()
     
     def __setattr__(self, attr, value):
         if attr == "parent":
@@ -158,10 +153,10 @@ class Snapshot(object):
             object.__setattr__(self, attr, value)
     
     def __unicode__(self):
-        return self.name
+        return unicode(self.name)
         
     def __str__(self):
-        return self.name
+        return str(self.name)
         
     def __repr__(self):
         return '<Snapshot %s>' % self.name
@@ -212,31 +207,3 @@ class Snapshot(object):
         if parent is not None:
             parent_path = os.path.join("..", "..", str(parent))
             os.symlink(parent_path, parent_file)
-
-    def _get_ancestor_junctions(self):
-        """ returns a list of ancestors that have more than one child ordered
-            by age, youngest first.
-            Stocks the result to avoid recalculating.
-        """
-        global ancestor_junctions, origins
-        if self in ancestor_junctions:    
-            return ancestor_junctions[self][:]
-        snapshot = self
-        l = []
-        while True:
-            next = snapshot.parent
-            if next == None:
-                break
-            else:
-                snapshot = next
-            if len(snapshot.children) > 1:
-                l.append(snapshot)
-        origins[self] = snapshot
-        ancestor_junctions[self] = l
-        return l[:]
-        
-    def _get_origin(self):
-        """ Returns oldest parent """
-        if self not in origins:
-            self._get_ancestor_junctions()
-        return origins[self]

@@ -1,8 +1,14 @@
 Roadmap in order of planned implementation
    
+ snapshots.py testing
+    -hash function, eq function
+    -use of Snapshot instances as dictionary keys
+ 
+ tree view testing
+    -figure out how to test printed output, mock?
+ 
  tree view command
-    -simple view with just names
-    -view with change stats
+    -add change stats
     -detailed view with all consolidated changes
     
  tag snapshot

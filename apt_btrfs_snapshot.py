@@ -305,72 +305,66 @@ class TreeView(object):
             else:
                 spacer += connected
         return spacer
-        
-    def _out_of_place(self, snapshot):
+    
+    def _sort_key(self, snapshot):
+        """ key for sorting the to_print list in order to assure that the 
+            different branches are printed coherently
+        """
         if snapshot.name == "@" or len(self.junctions) == 0:
-            return False
+            return snapshot.date
         junctions = self.junctions.keys()
         junctions.sort(key = lambda x: x.date)
         oldest = junctions[0]
         newest = junctions[-1]
-        common_ancestor = snapshots.first_common_ancestor(newest, snapshot) 
-        if common_ancestor == None:
-            return False
-        if common_ancestor.date < oldest.date:
-            return True
+        fca = snapshots.first_common_ancestor(newest, snapshot) 
+        if fca == None or oldest.date < fca.date:
+            return snapshot.date
+        return fca.date
     
     def print(self):
         """ pretty print a view of the tree """
+        self.column = 1
+        self.orphans = []
+        self.junctions = {}
+        
         no_children = [Snapshot("@")]
         for snap in snapshots.get_list():
             if len(snap.children) == 0:
                 no_children.append(snap)
-        to_print = [(s, s.date, 0) for s in no_children]
-        to_print.sort(key = lambda x: x[1])
-        self.column = 1
-        self.orphans = []
-        self.junctions = {}
+        to_print = no_children
+        to_print.sort(key = self._sort_key)
+        
         while True:
             try:
-                next = to_print.pop()
-                #print(next)
-                snapshot = next[0]
-                self.column += next[2]
+                snapshot = to_print.pop()
             except IndexError:
                 break
-            
-            if self._out_of_place(snapshot):
-                to_print.append((snapshot, snapshot.ancestor_junctions[0].date, 0))
-                to_print.sort(key = lambda x: x[1])
-                continue
 
             junction = self._print_up_to_junction(snapshot)
+            to_print.sort(key = self._sort_key)
             
             if junction == None:
+                
                 # We have reached the end of a disconnected branch
                 self.orphans.append(self.column)
                 print(self._spacer() + u"×  ")
-                #print("orphan", junction)
                         
             elif junction not in self.junctions:
-                # new junction found
                 
+                # new junction found
                 print(self._spacer() + u"│  ")
                 
                 self.junctions[junction] = Junction(junction, self.column)
                 self.junctions[junction].branches -= 1
-                #print("new", junction, self.junctions[junction])
-            
+                
             else:
                 # already seen this junction
                 self.junctions[junction].branches -= 1
                 self.junctions[junction].columns.append(self.column)
                 
-                # have we already printed all children of this junction
                 if self.junctions[junction].branches == 0:
                 
-                    to_print.append((junction, junction.date, 0))
-                    #to_print.sort(key = lambda x: x[1])
+                    to_print.append(junction)
                     
                     # construct and print branch join up line
                     cols = self.junctions[junction].columns
