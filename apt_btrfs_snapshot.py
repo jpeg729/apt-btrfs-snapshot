@@ -110,6 +110,8 @@ class AptBtrfsSnapshot(object):
             str('_'))
 
     def _parse_older_than_to_datetime(self, timefmt):
+        if isinstance(timefmt, datetime.datetime):
+            return timefmt
         now = datetime.datetime.now()
         if not timefmt.endswith("d"):
             raise Exception("Please specify time in days (e.g. 10d)")

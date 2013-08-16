@@ -95,6 +95,15 @@ class TestFstab(unittest.TestCase):
         self.assertTrue(commands.umount.called)
         self.assertFalse(os.path.exists(mp))
     
+    def test_parser_older_than_to_datetime(self):
+        apt_btrfs = AptBtrfsSnapshot(
+            fstab=os.path.join(self.testdir, "data", "fstab"),
+            test_mp=self.sandbox_root)
+        t = apt_btrfs._parse_older_than_to_datetime("5d")
+        e = datetime.datetime.now() - datetime.timedelta(5)
+        # Check that t is within a second of e
+        self.assertTrue(e - t < datetime.timedelta(0, 1))
+    
 
 class TestSnapshotting(unittest.TestCase):
     """ A lengthy setUp function copies a model subvolume tree with parent
@@ -415,15 +424,18 @@ class TestSnapshotting(unittest.TestCase):
 
     def test_delete_older_than(self):
         old_dirlist = os.listdir(self.sandbox_root)
-        self.apt_btrfs.delete_older_than("2013-08-07_18:00:42")
+        self.apt_btrfs.delete_older_than(
+            datetime.datetime(2013, 8, 7, 18, 0, 42))
         dirlist = os.listdir(self.sandbox_root)
         self.assertEqual(len(dirlist), len(old_dirlist) - 4)
         self.assertNotIn(SNAP_PREFIX + "2013-07-26_14:50:53", dirlist)
         self.assertNotIn(SNAP_PREFIX + "2013-08-06_00:29:05", dirlist)
         self.assertNotIn(SNAP_PREFIX + "2013-08-05_04:30:58", dirlist)
         self.assertNotIn(SNAP_PREFIX + "2013-08-02_00:24:00", dirlist)
+        
         old_dirlist = os.listdir(self.sandbox_root)
-        self.apt_btrfs.delete_older_than("2013-08-09_21:09:40")
+        self.apt_btrfs.delete_older_than(
+            datetime.datetime(2013, 8, 9, 21, 9, 40))
         dirlist = os.listdir(self.sandbox_root)
         self.assertEqual(len(dirlist), len(old_dirlist) - 8)
         self.assertNotIn(SNAP_PREFIX + "2013-08-09_21:08:01", dirlist)
