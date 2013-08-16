@@ -34,8 +34,10 @@ PARENT_LINK = "etc/apt-btrfs-parent"
 # the setup function called from AptBtrfsSnapshot.__init__
 mp = None
 
-parents, children, orphans = None, None, None
 list_of = None
+parents, children, orphans = {}, {}, []
+junctions, ancestor_junctions = [], {}
+common_ancestors, origins = {}, {}
 
 
 def setup(mountpoint):
@@ -43,6 +45,35 @@ def setup(mountpoint):
     mp = mountpoint
     _make_list()
     _parse_tree()
+
+def get_list(older_than=False):
+    """ return the list of available snapshots
+        If "older_than" is given (as a datetime) it will only include
+        snapshots that are older then the given date)
+    """
+    if older_than == False:
+        return list_of[:]
+    older = [s for s in list_of if s.date < older_than]
+    return older
+
+def first_common_ancestor(younger, older):
+    """ find first common ancestor """
+    global common_ancestors
+    if younger.date < older.date:
+        younger, older = older, younger
+    key = younger.name + older.name
+    if key in common_ancestors:
+        print('found', key)
+        return common_ancestors[key]
+    
+    while True:
+        if younger.date < older.date:
+            younger, older = older, younger
+        younger = younger.parent
+        if younger == None or younger == older:
+            common_ancestors[key] = younger
+            return younger
+            
 
 def _make_list():
     """ make the list of available snapshots """
@@ -61,18 +92,8 @@ def _make_list():
                 continue
             list_of.append(Snapshot(e))
 
-def get_list(older_than=False):
-    """ return the list of available snapshots
-        If "older_than" is given (as a datetime) it will only include
-        snapshots that are older then the given date)
-    """
-    if older_than == False:
-        return list_of[:]
-    older = [s for s in list_of if s.date < older_than]
-    return older
-
 def _parse_tree():
-    global parents, children, orphans
+    global parents, children, orphans, junctions
     parents = {}
     children = {}
     orphans = []
@@ -92,6 +113,7 @@ def _parse_tree():
             children[parent].append(snapshot)
         else:
             children[parent] = [snapshot]
+    junctions = [s for s in list_of if len(s.children) > 1]
 
 
 class Snapshot(object):
@@ -105,9 +127,9 @@ class Snapshot(object):
         self.name = name
         # date
         pos = len(SNAP_PREFIX)
-        d = name[pos:pos + 19]
+        date = name[pos:pos + 19]
         try:
-            self.date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")
+            self.date = datetime.datetime.strptime(date, "%Y-%m-%d_%H:%M:%S")
         except ValueError:
             self.date = None
             if self.name != "@":
@@ -122,6 +144,10 @@ class Snapshot(object):
             return self._get_children()
         if attr == "changes":
             return self._load_changes()
+        if attr == "ancestor_junctions":
+            return self._get_ancestor_junctions()
+        if attr == "origin":
+            return self._get_origin()
     
     def __setattr__(self, attr, value):
         if attr == "parent":
@@ -139,6 +165,14 @@ class Snapshot(object):
         
     def __repr__(self):
         return '<Snapshot %s>' % self.name
+        
+    def __hash__(self):
+        return hash(self.date)
+        
+    def __eq__(self, other):
+        if isinstance(other, Snapshot):
+            return self.name == other.name
+        return False
     
     def _load_changes(self):
         changes_file = os.path.join(mp, self.name, CHANGES_FILE)
@@ -164,7 +198,7 @@ class Snapshot(object):
     def _get_children(self):
         if self.name in children.keys():
             return children[self.name]
-        return None
+        return []
 
     def _link(self, parent):
         """ sets symlink from child to parent 
@@ -179,3 +213,30 @@ class Snapshot(object):
             parent_path = os.path.join("..", "..", str(parent))
             os.symlink(parent_path, parent_file)
 
+    def _get_ancestor_junctions(self):
+        """ returns a list of ancestors that have more than one child ordered
+            by age, youngest first.
+            Stocks the result to avoid recalculating.
+        """
+        global ancestor_junctions, origins
+        if self in ancestor_junctions:    
+            return ancestor_junctions[self][:]
+        snapshot = self
+        l = []
+        while True:
+            next = snapshot.parent
+            if next == None:
+                break
+            else:
+                snapshot = next
+            if len(snapshot.children) > 1:
+                l.append(snapshot)
+        origins[self] = snapshot
+        ancestor_junctions[self] = l
+        return l[:]
+        
+    def _get_origin(self):
+        """ Returns oldest parent """
+        if self not in origins:
+            self._get_ancestor_junctions()
+        return origins[self]

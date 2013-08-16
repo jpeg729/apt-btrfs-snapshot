@@ -19,36 +19,36 @@ Solution
 6. Do step 2 for it too.
 7. etc.
 
-Problem: what happens with disconnected branches?
+Problem: what if a recent branch attaches to an older point than an older
+branch?
 """
+If @apt-snapshot-2013-08-02_00:24:00 has parent 
+@apt-snapshot-2013-08-01_19:53:16 things get ugly.
+@
+│  
+│  @apt-snapshot-2013-08-09_21:09:40
+│  @apt-snapshot-2013-08-09_21:08:01
+│  │  
+│  │  @apt-snapshot-2013-08-09_21:06:00
+│  │  @apt-snapshot-2013-08-05_04:30:58
+│  │  @apt-snapshot-2013-08-02_00:24:00
+│  │  ×  
+│  │     @apt-snapshot-2013-08-09_21:05:56
+│  ├─────┘
+│  @apt-snapshot-2013-08-09_21:04:37
+│  @apt-snapshot-2013-08-08_18:44:47
+├──┘
+@apt-snapshot-2013-08-06_13:26:30
+@apt-snapshot-2013-08-06_00:29:05
+@apt-snapshot-2013-08-01_19:53:16
+│  
+│  @apt-snapshot-2013-07-31_12:53:16-raring-to-go
+├──┘
+@apt-snapshot-2013-07-31_00:00:04
+@apt-snapshot-2013-07-26_14:50:53
+×  
 
-def _print_up_to_junction(self, snapshot, column):
-    """ walks up the snapshot tree until the next one has more than one 
-        child, pretty printing each one
-    """
-    while true:
-        print("|--" * column + str(snapshot))
-        next = snapshot.parent
-        if len(snapshot.children) > 1 or snapshot == None:
-            return snapshot
-        else:
-            # spacer line
-            print("|  " * (column + 1)
-    
-def tree(self):
-    to_print = [s for s in snapshots.get_list() if s not in children.keys()]
-    to_print.sort(key = youngest_last)
-    column = 0
-    junctions = {}
-    while true:
-        snapshot = to_print.pop()
-        junction = self._print_up_to_junction(snapshot, column)
-        if junction in junctions.keys():
-            junctions[junction] -= 1
-            if junctions[junction] == 0:
-                to_print.append(junction)
-                print("branch junction join-up lines")
-                column = column - len(self.children[junction])
-            else:
-                junctions[junction] = len(self.children[junction]) - 1
-        column += 1
+
+Snapshot("@apt-snapshot-2013-08-02_00:24:00").parent="@apt-snapshot-2013-08-01_19:53:16"
+
+

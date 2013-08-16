@@ -261,53 +261,120 @@ class AptBtrfsSnapshot(object):
                   "that it exists, and that its name starts with "
                   "\"%s\"" % SNAP_PREFIX)
         return res
+    
+    def tree(self):
+        tree = TreeView()
+        tree.print()
 
-    def _print_up_to_junction(self, snapshot, column):
+
+class Junction(object):
+    def __init__(self, snapshot, start_column):
+        self.name = snapshot.name
+        self.branches = len(snapshot.children)
+        self.columns = [start_column]
+        self.date = snapshot.date
+    
+    def __repr__(self):
+        return "<Junction %s, branches %d, columns %s>" % (self.name, self.branches, self.columns)
+
+
+class TreeView(object):
+    """ TreeView pretty printer """
+    
+    def _print_up_to_junction(self, snapshot):
         """ walks up the snapshot tree until the next one has more than one 
             child, pretty printing each one
         """
-        padding = u"│  " * (column - 1)
-        pointer = ""
-        if column > 0:
-            pointer += u"┌──"
-        print(padding + pointer + str(snapshot))
-        if column > 0:
-            pointer = u"├──"
+        padding = self._spacer()
+        
         while True:
+            print(padding + str(snapshot))        
             snapshot = snapshot.parent
             if snapshot == None or len(snapshot.children) > 1:
                 return snapshot
-            print(padding + pointer + str(snapshot))
+    
+    def _spacer(self, stop_before_column=None):
+        connected = u"│  "
+        orphan = u"   "
+        spacer = ""
+        if stop_before_column == None:
+            stop_before_column = self.column
+        for col in range(1, stop_before_column):
+            if col in self.orphans:
+                spacer += orphan
+            else:
+                spacer += connected
+        return spacer
         
-    def tree(self):
+    def _out_of_place(self, snapshot):
+        if snapshot.name == "@" or len(self.junctions) == 0:
+            return False
+        junctions = self.junctions.keys()
+        junctions.sort(key = lambda x: x.date)
+        oldest = junctions[0]
+        newest = junctions[-1]
+        common_ancestor = snapshots.first_common_ancestor(newest, snapshot) 
+        if common_ancestor == None:
+            return False
+        if common_ancestor.date < oldest.date:
+            return True
+    
+    def print(self):
         """ pretty print a view of the tree """
-        to_print = [Snapshot("@")]
+        no_children = [Snapshot("@")]
         for snap in snapshots.get_list():
-            if snap.children == None:
-                to_print.append(snap)
-        to_print.sort(key = lambda x: x.date)
-        print(to_print)
-        column = 1
-        junction_branches = {}
-        junction_columns = {}
+            if len(snap.children) == 0:
+                no_children.append(snap)
+        to_print = [(s, s.date, 0) for s in no_children]
+        to_print.sort(key = lambda x: x[1])
+        self.column = 1
+        self.orphans = []
+        self.junctions = {}
         while True:
             try:
-                snapshot = to_print.pop()
+                next = to_print.pop()
+                #print(next)
+                snapshot = next[0]
+                self.column += next[2]
             except IndexError:
                 break
-            junction = self._print_up_to_junction(snapshot, column)
+            
+            if self._out_of_place(snapshot):
+                to_print.append((snapshot, snapshot.ancestor_junctions[0].date, 0))
+                to_print.sort(key = lambda x: x[1])
+                continue
+
+            junction = self._print_up_to_junction(snapshot)
+            
             if junction == None:
-                pass
-            elif junction.name in junction_branches.keys():
-                junction_branches[junction.name] -= 1
-                #print('junction ' + str(junction) + ' already seen ' + str(junction_branches[junction.name]))
-                junction_columns[junction.name].append(column)
-                if junction_branches[junction.name] == 0:
-                    #print("joining", junction_columns[junction.name])
-                    to_print.append(junction)
-                    # print branch join up line
-                    cols = junction_columns[junction.name]
-                    joinup = u"│  " * (cols[0] - 1) + u"├──"
+                # We have reached the end of a disconnected branch
+                self.orphans.append(self.column)
+                print(self._spacer() + u"×  ")
+                #print("orphan", junction)
+                        
+            elif junction not in self.junctions:
+                # new junction found
+                
+                print(self._spacer() + u"│  ")
+                
+                self.junctions[junction] = Junction(junction, self.column)
+                self.junctions[junction].branches -= 1
+                #print("new", junction, self.junctions[junction])
+            
+            else:
+                # already seen this junction
+                self.junctions[junction].branches -= 1
+                self.junctions[junction].columns.append(self.column)
+                
+                # have we already printed all children of this junction
+                if self.junctions[junction].branches == 0:
+                
+                    to_print.append((junction, junction.date, 0))
+                    #to_print.sort(key = lambda x: x[1])
+                    
+                    # construct and print branch join up line
+                    cols = self.junctions[junction].columns
+                    joinup = self._spacer(cols[0]) + u"├──"
                     for i in range(cols[0] + 1, cols[-1]):
                         if i in cols:
                             joinup += u"┴──"
@@ -315,14 +382,14 @@ class AptBtrfsSnapshot(object):
                             joinup += u"───"
                     joinup += u"┘"
                     print(joinup)
-                    column = junction_columns[junction.name][0] - 1
-            else:
-                #print('new junction found ' + str(junction) + str(len(junction.children) - 1))
-                junction_branches[junction.name] = len(junction.children) - 1
-                junction_columns[junction.name] = [column]
+                    
+                    # clean-ups
+                    self.column = self.junctions[junction].columns[0] - 1
+                    self.orphans = [x for x in self.orphans if x <= self.column]
+                    del self.junctions[junction]
             
-            column += 1
-            
+            self.column += 1
+    
 if __name__ == '__main__':
     import shutil
     selfdir = os.path.dirname(os.path.abspath(__file__))
