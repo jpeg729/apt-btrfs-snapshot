@@ -180,9 +180,10 @@ class AptBtrfsSnapshot(object):
         
         return True
     
-    def create(self):
+    def create(self, tag=""):
+        """ create a new apt-snapshot of @, tagging it if a tag is given """
         # make snapshot
-        snap_id = SNAP_PREFIX + self._get_now_str()
+        snap_id = SNAP_PREFIX + self._get_now_str() + tag
         res = self.commands.btrfs_subvolume_snapshot(
             os.path.join(self.mp, "@"),
             os.path.join(self.mp, snap_id))
@@ -198,12 +199,17 @@ class AptBtrfsSnapshot(object):
     
     def tag(self, snapshot, tag):
         """ Adds/replaces the tag for the given snapshot """
-        if tag:
-            tag = "-" + tag
+        children = Snapshot(snapshot).children
+
         pos = len(SNAP_PREFIX)
+        new_name = snapshot[:pos + 19] + tag
         old_snap = os.path.join(self.mp, snapshot)
-        new_snap = os.path.join(self.mp, snapshot[:pos + 19] + tag)
+        new_snap = os.path.join(self.mp, new_name)
         os.rename(old_snap, new_snap)
+        
+        tagged = Snapshot(new_name)
+        for child in children:
+            child.parent = tagged
         return True
 
     def list(self):
@@ -225,9 +231,19 @@ class AptBtrfsSnapshot(object):
                 older_than=older_than):
             res &= self.delete(snap)
         return res
+    
+    def _prompt_for_tag(self):
+        print("You haven't specified a tag for the snapshot that will be created from the current state.")
+        tag = raw_input("Please enter a tag: ")
+        if tag:
+            tag = "-" + tag
+        return tag
+    
+    def set_default(self, snapshot, tag=""):
+        """ backup @ and replace @ with a copy of given snapshot """
+        if not tag:
+            tag = self._prompt_for_tag()
 
-    def set_default(self, snapshot):
-        """ set new default """
         snapshot = Snapshot(snapshot)
         new_root = os.path.join(self.mp, snapshot.name)
         if (
@@ -248,7 +264,7 @@ class AptBtrfsSnapshot(object):
 
             # make backup name
             backup = os.path.join(self.mp, 
-                SNAP_PREFIX + self._get_now_str())
+                SNAP_PREFIX + self._get_now_str()) + tag
             # if backup name is already in use, wait a sec and try again
             if os.path.exists(backup):
                 time.sleep(1)
@@ -272,14 +288,14 @@ class AptBtrfsSnapshot(object):
                   "\"%s\"" % SNAP_PREFIX)
         return True
 
-    def rollback(self, how_many=1):
+    def rollback(self, number=1, tag=""):
         back_to = Snapshot("@")
-        for i in range(how_many):
+        for i in range(number):
             back_to = back_to.parent
             if back_to == None:
                 raise Exception("Can't rollback that far")
                 return False
-        return self.set_default(back_to)
+        return self.set_default(back_to, tag)
 
     def delete(self, snapshot):
         snapshot = Snapshot(snapshot)

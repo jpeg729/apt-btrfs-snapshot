@@ -147,6 +147,8 @@ class TestSnapshotting(unittest.TestCase):
     def tearDown(self):
         del self.apt_btrfs
         shutil.rmtree(self.sandbox_root)
+        try: print(self.output)
+        except: pass
 
     def test_btrfs_create_snapshot(self):
         res = self.apt_btrfs.create()
@@ -164,35 +166,6 @@ class TestSnapshotting(unittest.TestCase):
         self.assertTrue(os.path.exists(changes_file))
         history = pickle.load(open(changes_file, "rb"))
         self.assertEqual(len(history['install']), 10)
-
-    @mock.patch('sys.stdout')
-    def test_btrfs_set_default(self, mock_stdout):
-        mock_stdout.side_effect = StringIO()
-        old_listdir = os.listdir(self.sandbox_root)
-        res = self.apt_btrfs.set_default(SNAP_PREFIX + "2013-08-01_19:53:16")
-        # check results
-        self.assertTrue(res)
-        # check for backup existance (hard) and its parent (easy) and the 
-        # record of dpkg changes
-        new_listdir = os.listdir(self.sandbox_root)
-        for i in new_listdir:
-            if not i in old_listdir:
-                parent_file = os.path.join(self.sandbox_root, i, PARENT_LINK)
-                self.assertEqual(os.readlink(parent_file), 
-                    os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-06_13:26:30"))
-                changes_file = os.path.join(self.sandbox_root, i, CHANGES_FILE)
-                self.assertTrue(os.path.exists(changes_file))
-                history = pickle.load(open(changes_file, "rb"))
-                self.assertEqual(len(history['install']), 10)
-                   
-        self.assertTrue(os.path.exists(os.path.join(self.sandbox_root, 
-            SNAP_PREFIX + "2013-08-01_19:53:16")))
-        parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
-        self.assertEqual(os.readlink(parent_file), 
-            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-01_19:53:16"))
-        self.assertTrue(len(self.args), 2)
-        self.assertTrue(self.args[1].endswith("@apt-btrfs-staging"))
-        self.assertTrue(SNAP_PREFIX + "" in self.args[0])
 
     def test_btrfs_delete_snapshot(self):
         which = SNAP_PREFIX + "2013-07-31_00:00:04"
@@ -223,18 +196,72 @@ class TestSnapshotting(unittest.TestCase):
         self.assertEqual(history['auto-install'], [])
         self.assertEqual(history['purge'], history['remove'], [])
 
+    @mock.patch('sys.stdin')
+    @mock.patch('sys.stdout')
+    def test_btrfs_set_default(self, mock_stdout, mock_stdin):
+        mock_stdout.side_effect = StringIO()
+        mock_stdin.side_effect = StringIO()
+        old_listdir = os.listdir(self.sandbox_root)
+        res = self.apt_btrfs.set_default(SNAP_PREFIX + "2013-08-01_19:53:16", 
+            tag="-tag")
+        # check results
+        self.assertTrue(res)
+        # check for backup existance (hard) and its parent (easy) and the 
+        # record of dpkg changes
+        new_listdir = os.listdir(self.sandbox_root)
+        for i in new_listdir:
+            if i not in old_listdir:
+                parent_file = os.path.join(self.sandbox_root, i, PARENT_LINK)
+                self.assertEqual(os.readlink(parent_file), 
+                    os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-06_13:26:30"))
+                changes_file = os.path.join(self.sandbox_root, i, CHANGES_FILE)
+                self.assertTrue(os.path.exists(changes_file))
+                history = pickle.load(open(changes_file, "rb"))
+                self.assertEqual(len(history['install']), 10)
+                   
+        self.assertTrue(os.path.exists(os.path.join(self.sandbox_root, 
+            SNAP_PREFIX + "2013-08-01_19:53:16")))
+        parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
+        self.assertEqual(os.readlink(parent_file), 
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-01_19:53:16"))
+        self.assertTrue(len(self.args), 2)
+        self.assertTrue(self.args[1].endswith("@apt-btrfs-staging"))
+        self.assertTrue(SNAP_PREFIX + "" in self.args[0])
+
+    @mock.patch('sys.stdin')
+    @mock.patch('sys.stdout')
+    def test_btrfs_set_default_tag_prompting(self, mock_stdout, mock_stdin):
+        mock_stdout.side_effect = StringIO()
+        mock_stdin.side_effect = StringIO()
+        mock_stdin.readline.return_value = "tag"
+        old_listdir = os.listdir(self.sandbox_root)
+        res = self.apt_btrfs.set_default(SNAP_PREFIX + "2013-08-01_19:53:16")
+        # check for backup existance (hard) and its tag (easy)
+        new_listdir = os.listdir(self.sandbox_root)
+        for i in new_listdir:
+            if i not in old_listdir:
+                pos = len(SNAP_PREFIX)
+                self.assertEqual(i[pos+19:], "-tag")
+
     @mock.patch('sys.stdout')
     def test_rollback_one(self, mock_stdout):
         mock_stdout.side_effect = StringIO()
-        self.apt_btrfs.rollback()
+        old_listdir = os.listdir(self.sandbox_root)
+        self.apt_btrfs.rollback(tag="-tag")
         parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
         self.assertEqual(os.readlink(parent_file), 
             os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-06_13:26:30"))
+        # check for backup existance (hard) and its tag (easy)
+        new_listdir = os.listdir(self.sandbox_root)
+        for i in new_listdir:
+            if i not in old_listdir:
+                pos = len(SNAP_PREFIX)
+                self.assertEqual(i[pos+19:], "-tag")
     
     @mock.patch('sys.stdout')
     def test_rollback_five(self, mock_stdout):
         mock_stdout.side_effect = StringIO()
-        self.apt_btrfs.rollback(5)
+        self.apt_btrfs.rollback(5, "-tag")
         parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
         self.assertEqual(os.readlink(parent_file), 
             os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-26_14:50:53"))
@@ -243,7 +270,7 @@ class TestSnapshotting(unittest.TestCase):
     def test_rollback_six(self, mock_stdout):
         mock_stdout.side_effect = StringIO()
         with self.assertRaisesRegexp(Exception, "Can't rollback that far"):
-            self.apt_btrfs.rollback(6)
+            self.apt_btrfs.rollback(6, "-tag")
         parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
         self.assertEqual(os.readlink(parent_file), 
             os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-06_13:26:30"))
@@ -332,17 +359,27 @@ class TestSnapshotting(unittest.TestCase):
         self.assertEqual(output, expected)
 
     def test_tag(self):
-        self.apt_btrfs.tag("@apt-snapshot-2013-07-31_00:00:04", "tag")
+        self.apt_btrfs.tag(SNAP_PREFIX + "2013-07-31_00:00:04", "-tag")
         dirlist = os.listdir(self.sandbox_root)
-        self.assertTrue('@apt-snapshot-2013-07-31_00:00:04-tag' in dirlist)
+        self.assertIn(SNAP_PREFIX + "2013-07-31_00:00:04-tag", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-07-31_00:00:04", dirlist)
         
         self.apt_btrfs.tag("@apt-snapshot-2013-07-31_12:53:16-raring-to-go",
-            "tag")
+            "-tag")
         dirlist = os.listdir(self.sandbox_root)
-        self.assertIn('@apt-snapshot-2013-07-31_12:53:16-tag', dirlist)
-        self.assertNotIn("@apt-snapshot-2013-07-31_12:53:16-raring-to-go",
+        self.assertIn(SNAP_PREFIX + "2013-07-31_12:53:16-tag", dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go",
             dirlist)
-        
+        # check parent has been fixed in children
+        parent_file = os.path.join(self.sandbox_root, 
+            SNAP_PREFIX + "2013-08-01_19:53:16", PARENT_LINK)
+        self.assertEqual(os.readlink(parent_file), 
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-31_00:00:04-tag"))
+        parent_file = os.path.join(self.sandbox_root, 
+            SNAP_PREFIX + "2013-07-31_12:53:16-tag", PARENT_LINK)
+        self.assertEqual(os.readlink(parent_file), 
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-31_00:00:04-tag"))
+
 
 if __name__ == "__main__":
     unittest.main()

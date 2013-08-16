@@ -1,10 +1,5 @@
 Roadmap in order of planned implementation
    
- tag snapshot
-    -add tag option to "create" command
-    -set_default and rollback should prompt for tag if not given one
-    -rollback option -t to specify tag
-    
  factor in stuff from Chousuke
     -snapshot frequency throttling
     -snapshot disabling by shell var presence

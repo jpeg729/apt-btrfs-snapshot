@@ -36,7 +36,7 @@ from apt_btrfs_snapshot import (
 class ReportCalls(object):
     def make_skeleton(self, attr):
         def skeleton(*args, **kwargs):
-            print("Called %s with args %s and kwargs %s" % (attr,  args, kwargs))
+            print("Called '%s' with args %s and kwargs %s" % (attr,  args, kwargs))
         return skeleton
     
     def __getattr__(self, attr):
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     # list
     command = subparser.add_parser(
         "list", help=_("List the last n snapshots, default=10"))
-    command.add_argument("how_many", nargs='?', default=10, type=int)
+    command.add_argument("-n", "--number", default=10, type=int)
     command.set_defaults(command="list")
     # status
     command = subparser.add_parser(
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     # create
     command = subparser.add_parser(
         "create", help=_("Create a new snapshot"))
-    command.add_argument("tag", nargs='?', default="")
+    command.add_argument("-t", "--tag", default="")
     command.set_defaults(command="create")
     # tag
     command = subparser.add_parser(
@@ -91,13 +91,13 @@ if __name__ == "__main__":
     command = subparser.add_parser(
         "set-default", help=_("Revert to snapshot of your choice"))
     command.add_argument("snapshot")
-    command.add_argument("tag", nargs='?', default="")
+    command.add_argument("-t", "--tag", default="")
     command.set_defaults(command="set-default")
     # rollback
     command = subparser.add_parser(
         "rollback", help=_("Rollback n snapshots, default=1"))
-    command.add_argument("how_many", nargs='?', default=1, type=int)
-    command.add_argument("tag", nargs='?', default="", type=str)
+    command.add_argument("-n", "--number", default=1, type=int)
+    command.add_argument("-t", "--tag", default="")
     command.set_defaults(command="rollback")
     # delete
     command = subparser.add_parser(
@@ -133,7 +133,7 @@ if __name__ == "__main__":
             print(_("Not supported"))
             sys.exit(1)
 
-    if os.getuid() != 0:
+    if os.getuid() != 0 and not args.test:
         print(_("Sorry, you need to be root to run this program"))
         sys.exit(1)
 
@@ -146,19 +146,22 @@ if __name__ == "__main__":
     else:
         apt_btrfs = AptBtrfsSnapshot()
     
+    if hasattr(args, "tag") and args.tag:
+        args.tag = "-" + args.tag
+    
     res = False
     if args.command == "create":
         res = apt_btrfs.create(args.tag)
     elif args.command == "tag":
         res = apt_btrfs.tag(args.snapshot, args.tag)
     elif args.command == "list":
-        res = apt_btrfs.list(args.how_many)
+        res = apt_btrfs.list(args.number)
     elif args.command == "status":
         res = apt_btrfs.status()
     elif args.command == "set-default":
         res = apt_btrfs.set_default(args.snapshot, args.tag)
     elif args.command == "rollback":
-        res = apt_btrfs.rollback(args.how_many, args.tag)
+        res = apt_btrfs.rollback(args.number, args.tag)
     elif args.command == "delete":
         res = apt_btrfs.delete(args.snapshot)
     elif args.command == "list-older-than":

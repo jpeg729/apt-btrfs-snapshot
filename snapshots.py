@@ -205,7 +205,7 @@ class Snapshot(object):
         """
         parent_file = os.path.join(mp, self.name, PARENT_LINK)
         # remove parent link from child
-        if os.path.exists(parent_file):
+        if os.path.lexists(parent_file):
             os.remove(parent_file)
         # link to parent
         if parent is not None:
