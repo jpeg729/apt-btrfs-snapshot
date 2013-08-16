@@ -1,8 +1,5 @@
 Roadmap in order of planned implementation
    
- used space cleaning
-    -command line clean [apt|tmp|crash] option
- 
  write tests for command line script
  
  delete_older_than 

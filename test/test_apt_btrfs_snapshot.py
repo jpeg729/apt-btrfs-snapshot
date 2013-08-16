@@ -414,6 +414,16 @@ class TestSnapshotting(unittest.TestCase):
         self.assertEqual(os.readlink(parent_file), 
             os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-31_00:00:04-tag"))
 
+    def test_clean_apt_cache(self):
+        self.apt_btrfs.clean()
+        path = os.path.join(self.sandbox_root, "@/var/cache/apt/archives")
+        self.assertTrue(os.path.exists(os.path.join(path, "a.deb")))
+        path = os.path.join(self.sandbox_root, 
+            "@apt-snapshot-2013-08-07_18:00:42", "var/cache/apt/archives")
+        self.assertFalse(os.path.exists(os.path.join(path, "a.deb")))
+        self.assertFalse(os.path.exists(os.path.join(path, "b.deb")))
+        self.assertTrue(os.path.exists(os.path.join(path, "other_file")))
+
 
 if __name__ == "__main__":
     unittest.main()

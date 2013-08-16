@@ -373,6 +373,20 @@ class AptBtrfsSnapshot(object):
         date_parent, history = self._get_status()
         tree = TreeView(history)
         tree.print()
+    
+    def clean(self, what="apt-cache"):
+        snapshot_list = snapshots.get_list()
+        for snapshot in snapshot_list:
+            path = os.path.join(self.mp, snapshot.name)
+            if what == "apt-cache":
+                path = os.path.join(path, "var/cache/apt/archives")
+                if not os.path.exists(path):
+                    continue
+                dirlist = os.listdir(path)
+                for f in dirlist:
+                    fpath = os.path.join(path, f)
+                    if f.endswith(".deb") and os.path.lexists(fpath):
+                        os.remove(fpath)
 
 
 class Junction(object):
