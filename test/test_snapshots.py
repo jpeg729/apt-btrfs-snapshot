@@ -77,9 +77,10 @@ class TestSnapshot(unittest.TestCase):
     def test_list_snapshots(self):
         res = [s.name for s in snapshots.get_list()]
         dirlist = os.listdir(snapshots.mp)
-        dirlist = [i for i in dirlist if i.startswith(SNAP_PREFIX)]
-        self.maxDiff = None
-        self.assertItemsEqual(dirlist, res)
+        expected = [i for i in dirlist if i.startswith(SNAP_PREFIX)]
+        expected.remove(u'@apt-snapshot-xxxx-xx-xx_xx:xx:xx-bad-date')
+        expected.remove(u'@apt-snapshot-bad-date')
+        self.assertItemsEqual(expected, res)
         
     def test_list_snapshots_older_than(self):
         older_than = datetime.datetime(2013, 8, 3)

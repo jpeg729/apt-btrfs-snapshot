@@ -83,15 +83,13 @@ def _make_list():
     global list_of
     list_of = []
     for e in os.listdir(mp):
-        if e.startswith(SNAP_PREFIX):
+        if e.startswith(SNAP_PREFIX) and len(e) >= len(SNAP_PREFIX) + 19:
             pos = len(SNAP_PREFIX)
             d = e[pos:pos + 19]
             try:
                 date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")
             except ValueError:
                 # have found a badly named snapshot
-                if e != "@":
-                    raise Hell
                 continue
             list_of.append(Snapshot(e))
 
