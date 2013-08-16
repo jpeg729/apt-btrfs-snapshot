@@ -25,6 +25,7 @@ from snapshots import (
     PARENT_LINK, 
     CHANGES_FILE, 
     SNAP_PREFIX, 
+    PARENT_DOTS, 
 )
 
 
@@ -61,7 +62,7 @@ class TestSnapshot(unittest.TestCase):
         
     def test_parse_orphans(self):
         snapshots._parse_tree()
-        self.assertEqual(len(snapshots.orphans), 1)
+        self.assertEqual(len(snapshots.orphans), 3)
 
     def test_link(self):
         child = SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go"
@@ -71,16 +72,15 @@ class TestSnapshot(unittest.TestCase):
         self.assertFalse(os.path.exists(parent_file))
         Snapshot(child).parent = SNAP_PREFIX + "2013-07-26_14:50:53"
         self.assertEqual(os.readlink(parent_file), 
-            "../../" + SNAP_PREFIX + "2013-07-26_14:50:53")
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-26_14:50:53"))
 
     def test_list_snapshots(self):
-        res = snapshots.get_list()
+        res = [s.name for s in snapshots.get_list()]
         dirlist = os.listdir(snapshots.mp)
         dirlist = [i for i in dirlist if i.startswith(SNAP_PREFIX)]
-        self.assertEqual(len(res), len(dirlist))
-        for snap in res:
-            self.assertIn(snap.name, dirlist)
-
+        self.maxDiff = None
+        self.assertItemsEqual(dirlist, res)
+        
     def test_list_snapshots_older_than(self):
         older_than = datetime.datetime(2013, 8, 3)
         res = snapshots.get_list(
@@ -93,7 +93,19 @@ class TestSnapshot(unittest.TestCase):
         self.assertEqual(len(res), 1)
         
         res = snapshots.get_list()
-        self.assertEqual(len(res), 13)
+        self.assertEqual(len(res), 16)
+    
+    def test_hash_eq_and_dictionary_keys(self):
+        snapname = SNAP_PREFIX + "2013-07-26_14:50:53"
+        snapshot = Snapshot(snapname)
+        self.assertEqual(hash(snapshot), 
+            hash(datetime.datetime(2013, 7, 26, 14, 50, 53)))
+        self.assertEqual(snapshot, Snapshot(snapname))
+        self.assertNotEqual(snapshot, Snapshot(snapname + "tag"))
+        d = {}
+        d[snapshot] = 3
+        self.assertIn(Snapshot(snapname), d)
+        self.assertEqual(d[Snapshot(snapname)], d[snapshot], 3)
 
 
 

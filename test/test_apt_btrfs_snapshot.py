@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 from __future__ import print_function, unicode_literals
 
@@ -25,12 +26,21 @@ from apt_btrfs_snapshot import (
     AptBtrfsSnapshot,
     LowLevelCommands,
     supported, 
+)
+from snapshots import (
     PARENT_LINK, 
     CHANGES_FILE, 
     SNAP_PREFIX, 
-    Snapshot
+    PARENT_DOTS, 
+    Snapshot, 
 )
 
+
+def extract_stdout(mock_stdout):
+    out = ""
+    for call in mock_stdout.method_calls:
+        out += call[1][0]
+    return out
 
 class TestFstab(unittest.TestCase):
 
@@ -83,7 +93,7 @@ class TestFstab(unittest.TestCase):
         self.assertTrue(commands.umount.called)
         self.assertFalse(os.path.exists(mp))
 
-    # TODO move to testfile for apt-btrfs-snapshot
+    # TODO move to testfile for apt-btrfs-snapshot and re-enable
     def test_parser_older_than_to_datetime(self):
         return
         apt_btrfs = AptBtrfsSnapshot(
@@ -162,14 +172,14 @@ class TestSnapshotting(unittest.TestCase):
         res = self.apt_btrfs.set_default(SNAP_PREFIX + "2013-08-01_19:53:16")
         # check results
         self.assertTrue(res)
-        # check for backup existance (hard) and its parent (easy) and record
-        # of changes
+        # check for backup existance (hard) and its parent (easy) and the 
+        # record of dpkg changes
         new_listdir = os.listdir(self.sandbox_root)
         for i in new_listdir:
             if not i in old_listdir:
                 parent_file = os.path.join(self.sandbox_root, i, PARENT_LINK)
                 self.assertEqual(os.readlink(parent_file), 
-                    "../../" + SNAP_PREFIX + "2013-08-06_13:26:30")
+                    os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-06_13:26:30"))
                 changes_file = os.path.join(self.sandbox_root, i, CHANGES_FILE)
                 self.assertTrue(os.path.exists(changes_file))
                 history = pickle.load(open(changes_file, "rb"))
@@ -179,7 +189,7 @@ class TestSnapshotting(unittest.TestCase):
             SNAP_PREFIX + "2013-08-01_19:53:16")))
         parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
         self.assertEqual(os.readlink(parent_file), 
-            "../../" + SNAP_PREFIX + "2013-08-01_19:53:16")
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-01_19:53:16"))
         self.assertTrue(len(self.args), 2)
         self.assertTrue(self.args[1].endswith("@apt-btrfs-staging"))
         self.assertTrue(SNAP_PREFIX + "" in self.args[0])
@@ -193,11 +203,11 @@ class TestSnapshotting(unittest.TestCase):
         parent_file = os.path.join(self.sandbox_root, 
             SNAP_PREFIX + "2013-08-01_19:53:16", PARENT_LINK)
         self.assertEqual(os.readlink(parent_file), 
-            "../../" + SNAP_PREFIX + "2013-07-26_14:50:53")
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-26_14:50:53"))
         parent_file = os.path.join(self.sandbox_root, 
             SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go", PARENT_LINK)
         self.assertEqual(os.readlink(parent_file), 
-            "../../" + SNAP_PREFIX + "2013-07-26_14:50:53")
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-26_14:50:53"))
         # check that the change records have been consolidated
         changes_file = os.path.join(self.sandbox_root, 
             SNAP_PREFIX + "2013-08-01_19:53:16", CHANGES_FILE)
@@ -219,25 +229,107 @@ class TestSnapshotting(unittest.TestCase):
         self.apt_btrfs.rollback()
         parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
         self.assertEqual(os.readlink(parent_file), 
-            "../../" + SNAP_PREFIX + "2013-08-06_13:26:30")
-    # if desired these two tests can be put in the same function, but you will
-    # incur a 1s delay designed to avoid trying to create two snapshots of the 
-    # same name
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-06_13:26:30"))
+    
     @mock.patch('sys.stdout')
     def test_rollback_five(self, mock_stdout):
         mock_stdout.side_effect = StringIO()
         self.apt_btrfs.rollback(5)
         parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
         self.assertEqual(os.readlink(parent_file), 
-            "../../" + SNAP_PREFIX + "2013-08-01_19:53:16")
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-26_14:50:53"))
+
+    @mock.patch('sys.stdout')
+    def test_rollback_six(self, mock_stdout):
+        mock_stdout.side_effect = StringIO()
+        with self.assertRaisesRegexp(Exception, "Can't rollback that far"):
+            self.apt_btrfs.rollback(6)
+        parent_file = os.path.join(self.sandbox_root, "@", PARENT_LINK)
+        self.assertEqual(os.readlink(parent_file), 
+            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-08-06_13:26:30"))
 
     def test_get_status(self):
         date, history = self.apt_btrfs._get_status()
         self.assertEqual(len(history['install']), 10)
         self.assertEqual(len(history['auto-install']), 7)
         self.assertEqual(history['remove'], history['purge'], [])
-        self.assertEqual(history['upgrade'], [])      
-
+        self.assertEqual(history['upgrade'], [])     
+    
+    @mock.patch('sys.stdout')
+    def test_tree_view(self, mock_stdout): 
+        mock_stdout.side_effect = StringIO()
+        self.maxDiff = None
+        self.apt_btrfs.tree()
+        output = extract_stdout(mock_stdout)
+        expected = """@ (+17)
+│  
+│  @apt-snapshot-2013-08-09_21:09:40 (unknown)
+│  @apt-snapshot-2013-08-09_21:08:01 (unknown)
+│  │  
+│  │  @apt-snapshot-2013-08-09_21:06:32 (unknown)
+│  │  ×  
+│  │     @apt-snapshot-2013-08-09_21:05:56 (unknown)
+│  ├─────┘
+│  @apt-snapshot-2013-08-09_21:04:37 (unknown)
+│  @apt-snapshot-2013-08-08_18:44:47 (unknown)
+├──┘
+@apt-snapshot-2013-08-06_13:26:30 (unknown)
+@apt-snapshot-2013-08-06_00:29:05 (unknown)
+│  
+│  @apt-snapshot-2013-08-09_21:06:00 (unknown)
+│  │  
+│  │  @apt-snapshot-2013-08-07_18:00:42 (unknown)
+│  │  ×  
+│  │     @apt-snapshot-2013-08-05_04:30:58 (unknown)
+│  ├─────┘
+│  @apt-snapshot-2013-08-02_00:24:00 (unknown)
+├──┘
+@apt-snapshot-2013-08-01_19:53:16 (+1 -1)
+│  
+│  @apt-snapshot-2013-07-31_12:53:16-raring-to-go (+1 ^2)
+├──┘
+@apt-snapshot-2013-07-31_00:00:04 (+1)
+@apt-snapshot-2013-07-26_14:50:53 (unknown)
+×  
+"""
+        self.assertEqual(output, expected)
+        
+        Snapshot("@apt-snapshot-2013-08-09_21:06:00").parent = None
+        # reinitialize snapshots global variables.
+        snapshots.setup(self.sandbox_root)
+        self.apt_btrfs.tree()
+        output = extract_stdout(mock_stdout)
+        expected += """@ (+17)
+│  
+│  @apt-snapshot-2013-08-09_21:09:40 (unknown)
+│  @apt-snapshot-2013-08-09_21:08:01 (unknown)
+│  │  
+│  │  @apt-snapshot-2013-08-09_21:06:32 (unknown)
+│  │  ×  
+│  │     @apt-snapshot-2013-08-09_21:06:00 (unknown)
+│  │     ×  
+│  │        @apt-snapshot-2013-08-09_21:05:56 (unknown)
+│  ├────────┘
+│  @apt-snapshot-2013-08-09_21:04:37 (unknown)
+│  @apt-snapshot-2013-08-08_18:44:47 (unknown)
+├──┘
+@apt-snapshot-2013-08-06_13:26:30 (unknown)
+@apt-snapshot-2013-08-06_00:29:05 (unknown)
+│  
+│  @apt-snapshot-2013-08-07_18:00:42 (unknown)
+│  ×  
+│     @apt-snapshot-2013-08-05_04:30:58 (unknown)
+│     @apt-snapshot-2013-08-02_00:24:00 (unknown)
+├─────┘
+@apt-snapshot-2013-08-01_19:53:16 (+1 -1)
+│  
+│  @apt-snapshot-2013-07-31_12:53:16-raring-to-go (+1 ^2)
+├──┘
+@apt-snapshot-2013-07-31_00:00:04 (+1)
+@apt-snapshot-2013-07-26_14:50:53 (unknown)
+×  
+"""
+        self.assertEqual(output, expected)
 
 if __name__ == "__main__":
     unittest.main()

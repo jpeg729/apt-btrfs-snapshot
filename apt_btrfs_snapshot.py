@@ -27,10 +27,9 @@ import time
 import tempfile
 import cPickle as pickle
 import textwrap
+from collections import defaultdict
 
-from fstab import (
-    Fstab,
-)
+from fstab import Fstab
 from dpkg_history import DpkgHistory
 import snapshots
 from snapshots import (
@@ -111,17 +110,19 @@ class AptBtrfsSnapshot(object):
             str('_'))
 
     def _get_status(self):
-        mp = self.mp
-        # find package changes
-        parent_file = os.path.join(mp, "@", PARENT_LINK)
-        if os.path.exists(parent_file):
-            p = 6 + len(SNAP_PREFIX)
-            date_parent = os.readlink(parent_file)[p:p + 19].replace("_", " ")
+        
+        parent = Snapshot("@").parent
+        if parent is not None:
+            date_parent = parent.date
         else:
             date_parent = None
         if self.test:
+            testdir = os.path.dirname(os.path.abspath(__file__))
+            if not testdir.endswith("test"):
+                testdir = os.path.join(testdir, "test")
+            var_location = os.path.join(testdir, "data/var")
             history = DpkgHistory(since = date_parent, 
-                var_location = "data/var")
+                var_location = var_location)
         else:
             history = DpkgHistory(since = date_parent)
         return date_parent, history
@@ -129,9 +130,9 @@ class AptBtrfsSnapshot(object):
     def status(self):
         date_parent, history = self._get_status()
         if date_parent is None:
-            print("Cannot find a previous snapshot. The dpkg logs mention:")
+            print("Cannot find a parent snapshot. The dpkg logs mention:")
         else:
-            print("Since the previous snapshot taken on %s, there have been:" % 
+            print("Since the parent snapshot taken on %s, there have been:" % 
                 date_parent)
         for op in ("install", "auto-install", "upgrade", "remove", "purge"):
             if len(history[op]) > 0:
@@ -233,9 +234,10 @@ class AptBtrfsSnapshot(object):
         back_to = Snapshot("@")
         for i in range(how_many):
             back_to = back_to.parent
-            if back_to is None:
+            if back_to == None:
                 raise Exception("Can't rollback that far")
-        self.set_default(back_to)
+                return False
+        return self.set_default(back_to)
 
     def delete(self, snapshot):
         snapshot = Snapshot(snapshot)
@@ -263,23 +265,24 @@ class AptBtrfsSnapshot(object):
         return res
     
     def tree(self):
-        tree = TreeView()
+        date_parent, history = self._get_status()
+        tree = TreeView(history)
         tree.print()
 
 
 class Junction(object):
     def __init__(self, snapshot, start_column):
         self.name = snapshot.name
-        self.branches = len(snapshot.children)
+        self.branches_left_to_print = len(snapshot.children)
         self.columns = [start_column]
         self.date = snapshot.date
-    
-    def __repr__(self):
-        return "<Junction %s, branches %d, columns %s>" % (self.name, self.branches, self.columns)
 
 
 class TreeView(object):
     """ TreeView pretty printer """
+    
+    def __init__(self, latest_changes):
+        self.latest_changes = latest_changes
     
     def _print_up_to_junction(self, snapshot):
         """ walks up the snapshot tree until the next one has more than one 
@@ -288,10 +291,30 @@ class TreeView(object):
         padding = self._spacer()
         
         while True:
-            print(padding + str(snapshot))        
+            print(padding + str(snapshot) + self._brief_changes(snapshot))
             snapshot = snapshot.parent
             if snapshot == None or len(snapshot.children) > 1:
                 return snapshot
+    
+    def _brief_changes(self, snapshot):
+        if snapshot.name == '@':
+            changes = self.latest_changes
+        else:
+            changes = snapshot.changes
+        if changes == None:
+            return " (unknown)"
+        codes = {"i": "+", "a": "+", "u": "^", "r": "-", "p": "-"}
+        brief = defaultdict(int)
+        for i in ("install", "auto-install", "upgrade", "remove", "purge"):
+            if len(changes[i]) > 0:
+                brief[codes[i[0]]] += len(changes[i])
+        out = []
+        for i in ("+", "^", "-"):
+            if brief[i] > 0:
+                out.append("%s%d" % (i, brief[i])) 
+        if len(out) == 0:
+            out = ["none"]
+        return " (" + " ".join(out) + ")"
     
     def _spacer(self, stop_before_column=None):
         connected = u"│  "
@@ -355,14 +378,14 @@ class TreeView(object):
                 print(self._spacer() + u"│  ")
                 
                 self.junctions[junction] = Junction(junction, self.column)
-                self.junctions[junction].branches -= 1
+                self.junctions[junction].branches_left_to_print -= 1
                 
             else:
                 # already seen this junction
-                self.junctions[junction].branches -= 1
+                self.junctions[junction].branches_left_to_print -= 1
                 self.junctions[junction].columns.append(self.column)
                 
-                if self.junctions[junction].branches == 0:
+                if self.junctions[junction].branches_left_to_print == 0:
                 
                     to_print.append(junction)
                     
@@ -379,7 +402,8 @@ class TreeView(object):
                     
                     # clean-ups
                     self.column = self.junctions[junction].columns[0] - 1
-                    self.orphans = [x for x in self.orphans if x <= self.column]
+                    self.orphans = [x for x in self.orphans 
+                                          if x <= self.column]
                     del self.junctions[junction]
             
             self.column += 1
@@ -399,3 +423,8 @@ if __name__ == '__main__':
             fstab=os.path.join(testdir, "data", "fstab"),
             test_mp=sandbox_root)
     apt_btrfs.tree()
+    Snapshot("@apt-snapshot-2013-08-09_21:06:00").parent = None
+    # reinitialize snapshots global variables
+    snapshots.setup(sandbox_root)
+    apt_btrfs.tree()
+    apt_btrfs.status()

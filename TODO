@@ -1,15 +1,7 @@
 Roadmap in order of planned implementation
    
- snapshots.py testing
-    -hash function, eq function
-    -use of Snapshot instances as dictionary keys
- 
- tree view testing
-    -figure out how to test printed output, mock?
- 
  tree view command
-    -add change stats
-    -detailed view with all consolidated changes
+    -add change stats for @
     
  tag snapshot
     append/replace tag after the date part of the name
@@ -31,6 +23,8 @@ Roadmap in order of planned implementation
     -to keep tree intact
     - should not delete tagged snapshots
     - nor snapshots with multiple children 
+ 
+ testing for apt-btrfs-snapshot too
  
  single instance
     -http://stackoverflow.com/questions/380870/python-single-instance-of-program

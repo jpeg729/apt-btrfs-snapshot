@@ -22,13 +22,13 @@ import datetime
 import os
 import cPickle as pickle
 
+from dpkg_history import DpkgHistory
+
 
 SNAP_PREFIX = "@apt-snapshot-"
 CHANGES_FILE = "etc/apt-btrfs-changes"
 PARENT_LINK = "etc/apt-btrfs-parent"
-# If you modify PARENT_LINK don't forget to modify the line
-# parent_path = os.path.join("..", "..", parent)
-# in Snapshot._link()
+PARENT_DOTS = "../../"
 
 # mp is the mountpoint of the btrfs volume root. It will be set by 
 # the setup function called from AptBtrfsSnapshot.__init__
@@ -36,15 +36,15 @@ mp = None
 
 list_of = None
 parents, children, orphans = {}, {}, []
-junctions, ancestor_junctions = [], {}
-common_ancestors, origins = {}, {}
+common_ancestors = {}
 
 
 def setup(mountpoint):
-    global mp, list_of
+    global mp, list_of, common_ancestors
     mp = mountpoint
     _make_list()
     _parse_tree()
+    common_ancestors = {}
 
 def get_list(older_than=False):
     """ return the list of available snapshots
@@ -205,5 +205,5 @@ class Snapshot(object):
             os.remove(parent_file)
         # link to parent
         if parent is not None:
-            parent_path = os.path.join("..", "..", str(parent))
+            parent_path = os.path.join(PARENT_DOTS, str(parent))
             os.symlink(parent_path, parent_file)
