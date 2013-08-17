@@ -36,14 +36,14 @@ class TestSnapshot(unittest.TestCase):
         self.testdir = os.path.dirname(os.path.abspath(__file__))
         # make a copy of a model btrfs subvol tree
         model_root = os.path.join(self.testdir, "data", "model_root")
-        self.sandbox_root = os.path.join(self.testdir, "data", "root3")
-        if os.path.exists(self.sandbox_root):
-            shutil.rmtree(self.sandbox_root)
-        shutil.copytree(model_root, self.sandbox_root, symlinks=True)
-        snapshots.setup(self.sandbox_root)
+        self.sandbox = os.path.join(self.testdir, "data", "root3")
+        if os.path.exists(self.sandbox):
+            shutil.rmtree(self.sandbox)
+        shutil.copytree(model_root, self.sandbox, symlinks=True)
+        snapshots.setup(self.sandbox)
 
     def tearDown(self):
-        shutil.rmtree(self.sandbox_root)
+        shutil.rmtree(self.sandbox)
 
     def test_get_children(self):
         res = Snapshot(SNAP_PREFIX + "2013-07-31_00:00:04").children
@@ -68,7 +68,7 @@ class TestSnapshot(unittest.TestCase):
     def test_set_parent(self):
         child = SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go"
         Snapshot(child).parent = None
-        parent_file = os.path.join(self.sandbox_root, 
+        parent_file = os.path.join(self.sandbox, 
             SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go", PARENT_LINK)
         self.assertFalse(os.path.exists(parent_file))
         Snapshot(child).parent = SNAP_PREFIX + "2013-07-26_14:50:53"
@@ -138,7 +138,7 @@ class TestSnapshot(unittest.TestCase):
                 self.assertEqual(child.parent, parent)
                 if parent != None:
                     self.assertIn(child, parent.children)
-            snapshots.setup(self.sandbox_root)
+            snapshots.setup(self.sandbox)
 
 
 if __name__ == "__main__":

@@ -210,18 +210,5 @@ if __name__ == "__main__":
     else:
         sys.exit(1)
 
-"""
-x status
-x rollback
-x tree
-x tag
-x list_older_than
-x create
-x show
-x list
-x delete_older_than
-x clean
-x set_default
-x delete
-"""
+
 

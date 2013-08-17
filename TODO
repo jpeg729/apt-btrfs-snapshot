@@ -1,7 +1,3 @@
 Roadmap in order of planned implementation
  
- convert command
-    -converts a set of old style snapshots, adding parent and change info.
-    -assumes a branchless tree
- 
  put on launchpad and publicise

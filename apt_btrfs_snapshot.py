@@ -166,6 +166,8 @@ class AptBtrfsSnapshot(object):
         return parent, history
 
     def _prettify_changes(self, history, i_indent=" ", s_indent="  "):
+        if history == None:
+            return [i_indent + "No packages movements recorded"]
         output = []
         for op in ("install", "auto-install", "upgrade", "remove", "purge"):
             if len(history[op]) > 0:
