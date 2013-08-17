@@ -7,8 +7,10 @@ apt-btrfs-snapshot - Integrate btrfs snapshots with APT
 
 =head1 SYNOPSIS
 
-B<apt-btrfs-snapshot> [-h | --help | --debug | -q] { supported | list | 
-list-older-than | snapshot | set-default I<snapshot> | delete I<snapshot> | 
+B<apt-btrfs-snapshot> [-h | --help | --debug | --test] { supported | tree | 
+show I<snapshot> | status | list | list-older-than | create [-t I<tag>]| 
+tag I<snapshot> I<tag> | set-default I<snapshot> [-t I<tag>] | 
+rollback [-n I<number>] [-t I<tag>] | delete I<snapshot> | clean
 delete-older-than I<days>B<d> }
 
 =head1 DESCRIPTION
@@ -17,77 +19,100 @@ B<apt-btrfs-snapshot> is used to create and manage snapshots of the root
 filesystem. An APT hook is also installed to automatically create a snapshot
 every time APT is run.
 
+B<apt-btrfs-snapshot> tracks the hierarchy of snapshots and the dpkg package
+operations that happen in between.
 
-=head1 OPTIONS
 
-=over
-
-=item B<-q>
-
-Suppresses all output. Even from commands like "list"
-
-=back 
 
 =head1 ACTIONS
 
 =over
-
-=item snapshot		    
-
-Creates a snapshot
- 
-=item list
-
-Lists all snapshots matching current configuration
-
-=item list-older-than I<days>B<d>
-
-Lists all snapshots older than I<days> days.
-
-=item delete I<snapshot>	
-
-Deletes a snapshot 
-                    
-=item delete-older-than I<days>d
-
-Deletes all snapshots older than I<days> days. The value "0d" can be used
-to delete all days.
-
-=item show-configuration
-
-Displays current configuration
 
 =item supported          
 
 Tells the user if the system supports snapshots. If snapshots are not
 supported, returns with a non-zero exit code.
 
+=item tree
+
+Gives a tree view of all known snapshots showing the branches of their ancestry.
+Each line shows how many packages were install (+I<number>), upgraded
+(^I<number>) and removed (-I<number>) since the previous snapshot was taken.
+
+=item show I<snapshot>
+
+Show information pertaining to the I<snapshot> including its parent snapshot and
+the package installs, upgrades, removes, etc. since its parent snapshot was
+taken.
+
+=item status
+
+Show when the parent snapshot was taken and the package operations that have 
+occurred since.
+
+=item list
+
+Lists all available snapshots.
+
+=item list-older-than I<days>B<d>
+
+Lists all snapshots older than I<days> days.
+
+=item create [-t I<tag>]
+
+Creates a new snapshot, optionally adding the specified I<tag> to its name.
+
+=item tag I<snapshot> I<tag>
+
+Adds/replaces the tag added to the I<snapshot> name after the date.
+
+=item set-default I<snapshot> [-t I<tag>]
+
+Backs up the current root, optionally adding the specified I<tag> to its name.
+And restores a copy of I<snapshot>. 
+
+You will have to reboot after this operation.
+
+=item rollback [-n I<n>] [-t I<tag>]
+
+Backs up the current root, optionally adding the specified I<tag> to its name.
+Then restores a copy of the I<n>th ancestor of the current root.
+
+You will have to reboot after this operation.
+
+=item delete I<snapshot>	
+
+Deletes a snapshot. The parent and package operation information will be 
+combined with the information stored in its children.
+
+=item delete-older-than I<days>d
+
+Deletes snapshots older than I<days> days. The value "0d" can be used
+to delete all days. Tagged snapshots will not be deleted, nor will those at the 
+junction of branches. These snapshots can always be manually deleted.
+
+=item clean          
+
+The apt cache for downloaded deb files can get quite large, hence the apt-get
+clean command. This command deletes the deb files cached in the snapshots.
+Thereby freeing space.
+
 =back
 
-=head1 CONFIGURATION
+=head1 NOTES
 
-apt-btrfs-snapshot supports the following APT configuration variables:
-
-=over
-
-=item APT::Snapshots::RootSubvolume
-
-The btrfs subvolume that snapshots are based on. Defaults to "@"
-
-=item APT::Snapshots::Prefix
-
-A prefix attached to each snapshot. Defaults to "@apt-snapshot"
-
-=item APT::Snapshots::MaxAge
-
-Number of days that snapshots are kept for until cleaned by the default cron
-job. Defaults to "90")
-
-=back
+Snapshot creation will not happen if another snapshot has been created within
+the last minute, unless you specify a I<tag>. Stops Ubuntu's update manager
+provoking four snapshots in quick succession each time.
 
 In addition, if the environment variable B<APT_NO_SNAPSHOTS> is set when
-apt-btrfs-snapshot is run, no snapshots will be created.
+apt-btrfs-snapshot is run, no snapshots will be created unless a I<tag> is 
+specified. Useful when you will be installing several small packages and don't 
+need a snapshot every time.
 
+Tagging can serve to remind you why you abandoned a snapshot. Or to remind you
+of the value of one snapshot. Or to make sure important old snapshots are never
+deleted.
 
 =head1 SEE ALSO
 
