@@ -82,10 +82,10 @@ class TestFstab(unittest.TestCase):
 
     @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
     def test_mount_btrfs_root_volume(self, mock_commands):
-        apt_btrfs = AptBtrfsSnapshot(
-            fstab=os.path.join(self.testdir, "data", "fstab"))
         mock_commands.mount.return_value = True
         mock_commands.umount.return_value = True
+        apt_btrfs = AptBtrfsSnapshot(
+            fstab=os.path.join(self.testdir, "data", "fstab"))
         mp = apt_btrfs.mp
         self.assertTrue(apt_btrfs.commands.mount.called)
         self.assertTrue("apt-btrfs-snapshot-mp-" in mp)
