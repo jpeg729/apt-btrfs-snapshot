@@ -43,7 +43,7 @@ class ReportCalls(object):
             for k, v in kwargs.items():
                 out += ", %s=%s" % (k, v)
             out += ")"
-            print("Function call: %s" % out)
+            print("Calls: %s" % out)
             return True
         return skeleton
     

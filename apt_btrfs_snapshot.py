@@ -384,12 +384,25 @@ class AptBtrfsSnapshot(object):
                 res &= self.delete(snap)
         return res
     
+    def prune(self, snapshot):
+        snapshot = Snapshot(snapshot)
+        if len(snapshot.children) != 0:
+            raise Exception("Snapshot is not the end of a branch")
+        while True:
+            self.delete(snapshot)
+            snapshot.will_delete()
+            snapshot = snapshot.parent
+            if snapshot == None or len(snapshot.children) != 0:
+                break
+    
     def tree(self):
         date_parent, history = self._get_status()
         tree = TreeView(history)
         tree.print()
     
-    def recent(self, number=5, snapshot="@"):
+    def recent(self, number, snapshot):
+        print("%s and its predecessors. Showing %d snapshots.\n" % (snapshot, 
+            number))
         snapshot = Snapshot(snapshot)
         for i in range(number):
             self.show(snapshot, compact=True)
