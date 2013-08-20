@@ -386,14 +386,16 @@ class AptBtrfsSnapshot(object):
     
     def prune(self, snapshot):
         snapshot = Snapshot(snapshot)
+        res = True
         if len(snapshot.children) != 0:
             raise Exception("Snapshot is not the end of a branch")
         while True:
-            self.delete(snapshot)
-            snapshot.will_delete()
-            snapshot = snapshot.parent
+            parent = snapshot.parent
+            res &= self.delete(snapshot)
+            snapshot = parent
             if snapshot == None or len(snapshot.children) != 0:
                 break
+        return res
     
     def tree(self):
         date_parent, history = self._get_status()

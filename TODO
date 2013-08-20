@@ -7,4 +7,6 @@ Roadmap in order of planned implementation
     function: deletes snapshot and parents up to a parent with more than one
         child
  
+ refactor mount/umount into snapshots.py
+ 
  put on launchpad and publicise

@@ -41,7 +41,10 @@ def extract_stdout(mock_stdout, last_line_only=False):
     if last_line_only == True:
         return mock_stdout.method_calls[-2][1][0]
     for call in mock_stdout.method_calls:
-        out += call[1][0]
+        try:
+            out += call[1][0]
+        except IndexError:
+            pass#out += str(call)
     return out
 
 class TestFstab(unittest.TestCase):
@@ -146,12 +149,12 @@ class TestSnapshotting(unittest.TestCase):
         except: pass
 
     def do_and_find_new(self, function, *args, **kwargs):
-        old_listdir = os.listdir(self.sandbox)
+        old_dirlist = os.listdir(self.sandbox)
         res = function(*args, **kwargs)
-        new_listdir = os.listdir(self.sandbox)
+        new_dirlist = os.listdir(self.sandbox)
         newdir = None
-        for i in new_listdir:
-            if i not in old_listdir:
+        for i in new_dirlist:
+            if i not in old_dirlist:
                 newdir = i
         return res, newdir
     
@@ -186,13 +189,19 @@ class TestSnapshotting(unittest.TestCase):
         
         history = self.load_changes(newdir)
         self.assertEqual(len(history['install']), 10)
-        snapshots.list_of.append(Snapshot(newdir))
         
         # test skipping if recent
         res = self.apt_btrfs.create()
         output = extract_stdout(mock_stdout)
         expected = "A recent snapshot already exists: "
         self.assertTrue(output.startswith(expected))
+        
+        # test recent but tag -> create anyway
+        res, newdir = self.do_and_find_new(self.apt_btrfs.create, "-tag")
+        # check results
+        self.assertTrue(res)
+        self.assertTrue(newdir.endswith("-tag"))
+        self.assert_child_parent_linked("@", newdir)
         
         # test disabling by shell variable
         os.environ['APT_NO_SNAPSHOTS'] = '1'
@@ -445,6 +454,97 @@ class TestSnapshotting(unittest.TestCase):
         self.assertNotIn(SNAP_PREFIX + "2013-08-08_18:44:47", dirlist)
         self.assertNotIn(SNAP_PREFIX + "2013-08-07_18:00:42", dirlist)
         self.assertNotIn(SNAP_PREFIX + "2013-08-01_19:53:16", dirlist)
+
+    @mock.patch('sys.stdout')
+    def test_recent(self, mock_stdout):
+        mock_stdout.side_effect = StringIO()
+        res = self.apt_btrfs.recent(5, "@")
+        self.assertTrue(res)
+        output = extract_stdout(mock_stdout)
+        expected = """@ and its predecessors. Showing 5 snapshots.
+
+dpkg history for @
+- installs (10):
+    linux-generic-lts-raring, linux-headers-3.9.0-030900,
+    linux-headers-3.9.0-030900-generic, linux-headers-generic-lts-raring,
+    linux-image-3.8.0-27-generic, linux-image-3.9.0-030900-generic,
+    linux-image-generic-lts-raring, nemo-dropbox, picasa, python-mock
+- auto-installs (7):
+    lib32asound2, lib32z1, libc6-i386, linux-headers-3.8.0-27,
+    linux-headers-3.8.0-27-generic, lynx-cur, python-gpgme
+
+dpkg history for @apt-snapshot-2013-08-06_13:26:30
+- No packages operations recorded
+
+dpkg history for @apt-snapshot-2013-08-06_00:29:05
+- No packages operations recorded
+
+dpkg history for @apt-snapshot-2013-08-01_19:53:16
+- installs (1):
+    two
+- removes (1):
+    one
+
+dpkg history for @apt-snapshot-2013-07-31_00:00:04
+- installs (1):
+    one
+"""
+        self.assertEqual(output, expected)
+        res = self.apt_btrfs.recent(9, "@apt-snapshot-2013-08-09_21:08:01")
+        self.assertTrue(res)
+        output = extract_stdout(mock_stdout)
+        expected += """@apt-snapshot-2013-08-09_21:08:01 and its predecessors. Showing 9 snapshots.
+
+dpkg history for @apt-snapshot-2013-08-09_21:08:01
+- No packages operations recorded
+
+dpkg history for @apt-snapshot-2013-08-09_21:04:37
+- No packages operations recorded
+
+dpkg history for @apt-snapshot-2013-08-08_18:44:47
+- No packages operations recorded
+
+dpkg history for @apt-snapshot-2013-08-06_13:26:30
+- No packages operations recorded
+
+dpkg history for @apt-snapshot-2013-08-06_00:29:05
+- No packages operations recorded
+
+dpkg history for @apt-snapshot-2013-08-01_19:53:16
+- installs (1):
+    two
+- removes (1):
+    one
+
+dpkg history for @apt-snapshot-2013-07-31_00:00:04
+- installs (1):
+    one
+
+dpkg history for @apt-snapshot-2013-07-26_14:50:53
+- No packages operations recorded
+"""
+        self.assertEqual(output, expected)
+
+    def test_prune(self):
+        message = "Snapshot is not the end of a branch"
+        with self.assertRaisesRegexp(Exception, message):
+            res = self.apt_btrfs.prune("@apt-snapshot-2013-08-09_21:08:01")
+        old_dirlist = os.listdir(self.sandbox)
+        
+        res = self.apt_btrfs.prune("@apt-snapshot-2013-08-09_21:09:40")
+        self.assertTrue(res)
+        new_dirlist = os.listdir(self.sandbox)
+        self.assertEqual(len(old_dirlist), len(new_dirlist) + 2)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-09_21:09:40", new_dirlist)
+        self.assertNotIn(SNAP_PREFIX + "2013-08-09_21:08:01", new_dirlist)
+        
+        res = self.apt_btrfs.prune("@apt-snapshot-2013-08-09_21:05:56")
+        self.assertTrue(res)
+        new_dirlist = os.listdir(self.sandbox)
+        self.assertEqual(len(old_dirlist), len(new_dirlist) + 5)
+        self.assertNotIn("@apt-snapshot-2013-08-09_21:05:56", new_dirlist)
+        self.assertNotIn("@apt-snapshot-2013-08-09_21:04:37", new_dirlist)
+        self.assertNotIn("@apt-snapshot-2013-08-08_18:44:47", new_dirlist)
 
 
 if __name__ == "__main__":

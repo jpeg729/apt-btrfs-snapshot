@@ -109,6 +109,14 @@ def _parse_tree():
             children[parent] = [snapshot]
 
 
+class List(list):
+    def __init__(self):
+        pass
+    
+    def __del__(self):
+        pass
+
+
 class Snapshot(object):
 
     def __init__(self, name):
