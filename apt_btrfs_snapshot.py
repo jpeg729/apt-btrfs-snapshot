@@ -40,6 +40,10 @@ from snapshots import (
 )
 
 
+NO_HISTORY = {'purge': [], 'upgrade': [], 'auto-install': [], 'remove': [],
+    'install': []}
+
+
 def supported(fstab="/etc/fstab"):
     """ verify that the system supports apt btrfs snapshots
         by checking if the right fs layout is used etc
@@ -165,9 +169,9 @@ class AptBtrfsSnapshot(object):
             history = DpkgHistory(since = date_parent)
         return parent, history
 
-    def _prettify_changes(self, history, i_indent=" ", s_indent="  "):
-        if history == None:
-            return [i_indent + "No packages movements recorded"]
+    def _prettify_changes(self, history, i_indent="- ", s_indent="    "):
+        if history == None or history == NO_HISTORY:
+            return [i_indent + "No packages operations recorded"]
         output = []
         for op in ("install", "auto-install", "upgrade", "remove", "purge"):
             if len(history[op]) > 0:
@@ -180,7 +184,8 @@ class AptBtrfsSnapshot(object):
                     # if we are in a terminal, wrap text to match its width
                     rows, columns = os.popen('stty size', 'r').read().split()
                     packages = textwrap.wrap(packages, width=int(columns), 
-                        initial_indent=s_indent, subsequent_indent=s_indent)
+                        initial_indent=s_indent, subsequent_indent=s_indent,
+                        break_on_hyphens=False)
                 output.extend(packages)
         return output
     
@@ -188,7 +193,7 @@ class AptBtrfsSnapshot(object):
         """ show current root's parent and recent changes """
         return self.show("@")
     
-    def show(self, snapshot):
+    def show(self, snapshot, compact=False):
         """ show details pertaining to given snapshot """
         snapshot = Snapshot(snapshot)
         if snapshot.name == "@":
@@ -207,15 +212,17 @@ class AptBtrfsSnapshot(object):
         else:
             parent = parent.name
         
-        title = "Snapshot %s" % snapshot.name
-        print(title)
-        print('-' * len(title))
-        if snapshot.name != "@":
-            print(mainline)
-        print("Parent: %s" % parent)
-        if parent == "unknown" and snapshot.name == "@":
-            print("dpkg history shown for the last 30 days")
-        print("dpkg history:")
+        if not compact:
+            title = "Snapshot %s" % snapshot.name
+            print(title)
+            if snapshot.name != "@":
+                print(mainline)
+            print("Parent: %s" % parent)
+            if parent == "unknown" and snapshot.name == "@":
+                print("dpkg history shown for the last 30 days")
+            print("dpkg history:")
+        else:
+            print("dpkg history for %s" % snapshot.name)
         print("\n".join(pretty_history))
         
         return True
@@ -269,7 +276,7 @@ class AptBtrfsSnapshot(object):
 
     def list(self):
         # The function name will not clash with reserved keywords. It is only
-        # accessible via instance.list()
+        # accessible via self.list()
         print("Available snapshots:")
         print("  \n".join(snapshots.get_list()))
         return True
@@ -381,6 +388,17 @@ class AptBtrfsSnapshot(object):
         date_parent, history = self._get_status()
         tree = TreeView(history)
         tree.print()
+    
+    def recent(self, number=5, snapshot="@"):
+        snapshot = Snapshot(snapshot)
+        for i in range(number):
+            self.show(snapshot, compact=True)
+            snapshot = snapshot.parent
+            if snapshot == None or i == number - 1:
+                break
+            else:
+                print()
+        return True
     
     def clean(self, what="apt-cache"):
         snapshot_list = snapshots.get_list()

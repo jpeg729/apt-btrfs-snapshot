@@ -86,6 +86,11 @@ if __name__ == "__main__":
         "create", help=_("Create a new snapshot"))
     command.add_argument("-t", "--tag", default="")
     command.set_defaults(command="create")
+    # snapshot
+    command = subparser.add_parser(
+        "snapshot", help=_("Create a new snapshot"))
+    command.add_argument("-t", "--tag", default="")
+    command.set_defaults(command="create")
     # tag
     command = subparser.add_parser(
         "tag", help=_("Set/change the tag of a snapshot"))
@@ -121,12 +126,18 @@ if __name__ == "__main__":
     command.set_defaults(command="delete-older-than")
     # clean
     command = subparser.add_parser(
-        "clean", help=_("Clean the apt cache of the snapshots"))
+        "clean", help=_("Clean the apt cache in the snapshots"))
     command.set_defaults(command="clean")
     # tree
     command = subparser.add_parser(
         "tree", help=_("Tree view of snapshots"))
     command.set_defaults(command="tree")
+    # recent
+    command = subparser.add_parser(
+        "recent", help=_("List of five predecessor snapshots of the current state"))
+    command.add_argument("-n", "--number", default=5, type=int)
+    command.add_argument("-s", "--snapshot", default="@")
+    command.set_defaults(command="recent")
 
     # parse args
     args = parser.parse_args()
@@ -201,6 +212,8 @@ if __name__ == "__main__":
         res = apt_btrfs.clean()
     elif args.command == "tree":
         res = apt_btrfs.tree()
+    elif args.command == "recent":
+        res = apt_btrfs.recent(args.number, args.snapshot)
     else:
         print(_("ERROR: Unhandled command: '%s'") % args.command)
 
