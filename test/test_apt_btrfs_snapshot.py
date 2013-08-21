@@ -101,7 +101,7 @@ class TestFstab(unittest.TestCase):
     def test_parser_older_than_to_datetime(self):
         apt_btrfs = AptBtrfsSnapshot(
             fstab=os.path.join(self.testdir, "data", "fstab"),
-            test_mp=self.sandbox)
+            sandbox=self.sandbox)
         t = apt_btrfs._parse_older_than_to_datetime("5d")
         e = datetime.datetime.now() - datetime.timedelta(5)
         # Check that t is within a second of e
@@ -126,7 +126,7 @@ class TestSnapshotting(unittest.TestCase):
         # setup snapshot class
         self.apt_btrfs = AptBtrfsSnapshot(
             fstab=os.path.join(self.testdir, "data", "fstab"),
-            test_mp=self.sandbox)
+            sandbox=self.sandbox)
         # hack to replace low level snapshot command with a working copy func
         # that reports back on its working.
         # I couldn't see how to do this class-wide using mock

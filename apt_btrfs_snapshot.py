@@ -82,7 +82,7 @@ class LowLevelCommands(object):
 class AptBtrfsSnapshot(object):
     """ the high level object that interacts with the snapshot system """
 
-    def __init__(self, fstab="/etc/fstab", test_mp=None):
+    def __init__(self, fstab="/etc/fstab", sandbox=None):
         self.fstab = Fstab(fstab)
         self.commands = LowLevelCommands()
         self.parents = None
@@ -90,8 +90,8 @@ class AptBtrfsSnapshot(object):
         self.orphans = None
         # if we haven't been given a testing ground to play in, mount the real
         # root volume
-        self.test = test_mp is not None
-        self.mp = test_mp
+        self.test = sandbox is not None
+        self.mp = sandbox
         if self.mp is None:
             uuid = self.fstab.uuid_for_mountpoint("/")
             mountpoint = tempfile.mkdtemp(prefix="apt-btrfs-snapshot-mp-")
@@ -581,7 +581,7 @@ if __name__ == '__main__':
     # setup snapshot class
     apt_btrfs = AptBtrfsSnapshot(
             fstab=os.path.join(testdir, "data", "fstab"),
-            test_mp=sandbox_root)
+            sandbox=sandbox_root)
     apt_btrfs.tree()
     for k,v in apt_btrfs.__class__.__dict__.items():
         if not k.startswith("_"):

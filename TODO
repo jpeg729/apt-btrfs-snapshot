@@ -1,12 +1,5 @@
 Roadmap in order of planned implementation
  
- write tests for recent command
- 
- write tests for prune command
-    syntax: prune snapshot_at_end_of_a_branch
-    function: deletes snapshot and parents up to a parent with more than one
-        child
- 
  refactor mount/umount into snapshots.py
  
  put on launchpad and publicise

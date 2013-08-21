@@ -39,11 +39,10 @@ parents, children, orphans = {}, {}, []
 
 
 def setup(mountpoint):
-    global mp, list_of, common_ancestors
+    global mp, list_of
     mp = mountpoint
     _make_list()
     _parse_tree()
-    common_ancestors = {}
 
 def get_list(older_than=False):
     """ return the list of available snapshots
@@ -109,7 +108,7 @@ def _parse_tree():
             children[parent] = [snapshot]
 
 
-class List(list):
+class ListOf(list):
     def __init__(self):
         pass
     
