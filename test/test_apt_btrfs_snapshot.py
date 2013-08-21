@@ -47,7 +47,7 @@ def extract_stdout(mock_stdout, last_line_only=False):
             pass
     return out
 
-class TestFstab(unittest.TestCase):
+class TestMounting(unittest.TestCase):
 
     def setUp(self):
         self.testdir = os.path.dirname(os.path.abspath(__file__))
@@ -61,44 +61,32 @@ class TestFstab(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.sandbox)
 
-    @mock.patch('os.path.exists')
-    def test_fstab_detect_snapshot(self, mock_commands):
-        #Using python-mock 0.7 style, for precise compatibility
-        mock_commands.side_effect = lambda f: f in ('/sbin/btrf')
-        self.assertFalse(supported(
-            fstab=os.path.join(self.testdir, "data", "fstab")))
-        mock_commands.side_effect = lambda f: f in ('/sbin/btrfs')
-        self.assertTrue(supported(
-            fstab=os.path.join(self.testdir, "data", "fstab")))
-        self.assertFalse(supported(
-            fstab=os.path.join(self.testdir, "data", "fstab.no-btrfs")))
-        self.assertFalse(supported(
-            fstab=os.path.join(self.testdir, "data", "fstab.bug806065")))
-        self.assertTrue(supported(
-            fstab=os.path.join(self.testdir, "data", "fstab.bug872145")))
-
-    def test_fstab_get_uuid(self):
-        fstab = Fstab(
-            fstab=os.path.join(self.testdir, "data", "fstab"))
-        self.assertEqual(fstab.uuid_for_mountpoint("/"),
-                         "UUID=fe63f598-1906-478e-acc7-f74740e78d1f")
-
-    @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
-    def test_mount_btrfs_root_volume(self, mock_commands):
-        # mocking like this doesn't work. mock objects get returned
-        # instead of the return_value
-        mock_commands.mount.return_value = True
-        mock_commands.umount.return_value = True
+    @mock.patch('apt_btrfs_snapshot.LowLevelCommands.mount')
+    @mock.patch('apt_btrfs_snapshot.LowLevelCommands.umount')
+    def test_mount_btrfs_root_volume(self, mock_umount, mock_mount):
+        mock_mount.return_value = True
+        mock_umount.return_value = True
         apt_btrfs = AptBtrfsSnapshot(
             fstab=os.path.join(self.testdir, "data", "fstab"))
         mp = apt_btrfs.mp
-        self.assertTrue(apt_btrfs.commands.mount.called)
+        self.assertTrue(mock_mount.called)
         self.assertTrue("apt-btrfs-snapshot-mp-" in mp)
         self.assertTrue(os.path.exists(mp))
-        commands = apt_btrfs.commands
         del apt_btrfs
-        self.assertTrue(commands.umount.called)
+        self.assertTrue(mock_umount.called)
         self.assertFalse(os.path.exists(mp))
+
+    @mock.patch('apt_btrfs_snapshot.LowLevelCommands.mount')
+    @mock.patch('apt_btrfs_snapshot.LowLevelCommands.umount')
+    def test_mount_btrfs_root_volume_fails(self, mock_umount, mock_mount):
+        mock_mount.return_value = False
+        mock_umount.return_value = True
+        message = "Unable to mount root volume"
+        with self.assertRaisesRegexp(Exception, message):
+            apt_btrfs = AptBtrfsSnapshot(
+                fstab=os.path.join(self.testdir, "data", "fstab"))
+        self.assertTrue(mock_mount.called)
+        self.assertFalse(mock_umount.called)
     
     def test_parser_older_than_to_datetime(self):
         apt_btrfs = AptBtrfsSnapshot(
@@ -110,6 +98,22 @@ class TestFstab(unittest.TestCase):
         self.assertTrue(e - t < datetime.timedelta(0, 1))
     
 
+# fake low level snapshot
+def mock_snapshot_fn(source, dest):
+    shutil.copytree(source, dest, symlinks=True)
+    return True
+mock_snapshot = mock.Mock(side_effect=mock_snapshot_fn)
+
+# fake low level delete
+def mock_delete_fn(which):
+    shutil.rmtree(which)
+    return True
+mock_delete = mock.Mock(side_effect=mock_delete_fn)
+
+@mock.patch('apt_btrfs_snapshot.LowLevelCommands.btrfs_delete_snapshot',
+    new=mock_delete)
+@mock.patch('apt_btrfs_snapshot.LowLevelCommands.btrfs_subvolume_snapshot',
+    new=mock_snapshot)
 class TestSnapshotting(unittest.TestCase):
     """ A lengthy setUp function copies a model subvolume tree with parent
         links and some package change info. A couple of LowLevelCommand
@@ -117,32 +121,21 @@ class TestSnapshotting(unittest.TestCase):
         real work on the model subvolume tree without any risk of messing
         anything up.
     """
-    def setUp(self):
+    def setUp(self):#, mock_btrfs_subvolume_snapshot, mock_btrfs_delete_snapshot):
+        
         self.testdir = os.path.dirname(os.path.abspath(__file__))
+        
         # make a copy of a model btrfs subvol tree
         model_root = os.path.join(self.testdir, "data", "model_root")
         self.sandbox = os.path.join(self.testdir, "data", "root3")
         if os.path.exists(self.sandbox):
             shutil.rmtree(self.sandbox)
         shutil.copytree(model_root, self.sandbox, symlinks=True)
+        
         # setup snapshot class
         self.apt_btrfs = AptBtrfsSnapshot(
             fstab=os.path.join(self.testdir, "data", "fstab"),
             sandbox=self.sandbox)
-        # hack to replace low level snapshot command with a working copy func
-        # that reports back on its working.
-        # I couldn't see how to do this class-wide using mock
-        self.args = []
-        def mock_snapshot(source, dest):
-            shutil.copytree(source, dest, symlinks=True)
-            self.args = source, dest
-            return True
-        self.apt_btrfs.commands.btrfs_subvolume_snapshot = mock_snapshot
-        # low level delete
-        def mock_delete(which):
-            shutil.rmtree(which)
-            return True
-        self.apt_btrfs.commands.btrfs_delete_snapshot = mock_delete
 
     def tearDown(self):
         del self.apt_btrfs
@@ -194,9 +187,10 @@ class TestSnapshotting(unittest.TestCase):
         self.assert_child_parent_linked(newdir, 
             SNAP_PREFIX + "2013-08-06_13:26:30")
         
-        self.assertTrue(len(self.args), 2)
-        self.assertTrue(self.args[0].endswith("@"))
-        self.assertTrue(SNAP_PREFIX in self.args[1])
+        args = LowLevelCommands.btrfs_subvolume_snapshot.call_args[0]
+        self.assertTrue(len(args), 2)
+        self.assertTrue(args[0].endswith("@"))
+        self.assertTrue(SNAP_PREFIX in args[1])
         
         history = self.load_changes(newdir)
         self.assertEqual(len(history['install']), 10)
@@ -278,9 +272,10 @@ class TestSnapshotting(unittest.TestCase):
         self.assert_child_parent_linked("@",
             SNAP_PREFIX + "2013-08-01_19:53:16")
         
-        self.assertTrue(len(self.args), 2)
-        self.assertTrue(self.args[1].endswith("@apt-btrfs-staging"))
-        self.assertTrue(SNAP_PREFIX + "" in self.args[0])
+        args = LowLevelCommands.btrfs_subvolume_snapshot.call_args[0]
+        self.assertTrue(len(args), 2)
+        self.assertTrue(args[1].endswith("@apt-btrfs-staging"))
+        self.assertTrue(SNAP_PREFIX + "" in args[0])
 
     @mock.patch('sys.stdin')
     @mock.patch('sys.stdout')
