@@ -44,7 +44,7 @@ def extract_stdout(mock_stdout, last_line_only=False):
         try:
             out += call[1][0]
         except IndexError:
-            pass#out += str(call)
+            pass
     return out
 
 class TestFstab(unittest.TestCase):
@@ -85,6 +85,8 @@ class TestFstab(unittest.TestCase):
 
     @mock.patch('apt_btrfs_snapshot.LowLevelCommands')
     def test_mount_btrfs_root_volume(self, mock_commands):
+        # mocking like this doesn't work. mock objects get returned
+        # instead of the return_value
         mock_commands.mount.return_value = True
         mock_commands.umount.return_value = True
         apt_btrfs = AptBtrfsSnapshot(
@@ -170,7 +172,16 @@ class TestSnapshotting(unittest.TestCase):
         self.assertTrue(os.path.exists(changes_file))
         history = pickle.load(open(changes_file, "rb"))
         return history
-    
+        
+    def test_parser_older_than_to_datetime(self):
+        apt_btrfs = AptBtrfsSnapshot(
+            fstab=os.path.join(self.testdir, "data", "fstab"),
+            sandbox=self.sandbox)
+        t = apt_btrfs._parse_older_than_to_datetime("5d")
+        e = datetime.datetime.now() - datetime.timedelta(5)
+        # Check that t is within a second of e
+        self.assertTrue(e - t < datetime.timedelta(0, 1))
+
     @mock.patch('sys.stdout')
     def test_btrfs_create_snapshot(self, mock_stdout):
         mock_stdout.side_effect = StringIO()

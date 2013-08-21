@@ -85,9 +85,6 @@ class AptBtrfsSnapshot(object):
     def __init__(self, fstab="/etc/fstab", sandbox=None):
         self.fstab = Fstab(fstab)
         self.commands = LowLevelCommands()
-        self.parents = None
-        self.children = None
-        self.orphans = None
         # if we haven't been given a testing ground to play in, mount the real
         # root volume
         self.test = sandbox is not None
@@ -96,7 +93,8 @@ class AptBtrfsSnapshot(object):
             uuid = self.fstab.uuid_for_mountpoint("/")
             mountpoint = tempfile.mkdtemp(prefix="apt-btrfs-snapshot-mp-")
             if not self.commands.mount(uuid, mountpoint):
-                return None
+                os.rmdir(mountpoint)
+                raise Exception("Unable to mount root volume")
             self.mp = mountpoint
         snapshots.setup(self.mp)
 
@@ -284,8 +282,7 @@ class AptBtrfsSnapshot(object):
     def list_older_than(self, timefmt):
         older_than = self._parse_older_than_to_datetime(timefmt)
         print("Available snapshots older than '%s':" % timefmt)
-        print("  \n".join(snapshots.get_list(
-            older_than=older_than)))
+        print("  \n".join(snapshots.get_list(older_than=older_than)))
         return True
 
     def _prompt_for_tag(self):

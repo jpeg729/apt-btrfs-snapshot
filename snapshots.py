@@ -38,6 +38,10 @@ list_of = None
 parents, children, orphans = {}, {}, []
 
 
+class BadSnapshotError(Exception):
+    pass
+
+
 def setup(mountpoint):
     global mp, list_of
     mp = mountpoint
@@ -56,10 +60,10 @@ def get_list(older_than=False):
     older = [s for s in list_of if s.date < older_than]
     return older
 
-def first_common_ancestor(younger, older):
-    """ find first common ancestor """
-    younger = Snapshot(younger)
-    older = Snapshot(older)
+def first_common_ancestor(one, another):
+    """ find first common ancestor of two snapshots """
+    younger = Snapshot(one)
+    older = Snapshot(another)
     
     while True:
         if younger.date < older.date:
@@ -76,16 +80,15 @@ def _make_list():
     for e in os.listdir(mp):
         pos = len(SNAP_PREFIX)
         if e.startswith(SNAP_PREFIX) and len(e) >= pos + 19:
-            
-            d = e[pos:pos + 19]
             try:
-                date = datetime.datetime.strptime(d, "%Y-%m-%d_%H:%M:%S")
-            except ValueError:
-                # have found a badly named snapshot
+                list_of.append(Snapshot(e))
+            except BadSnapshotError:
                 continue
-            list_of.append(Snapshot(e))
 
 def _parse_tree():
+    """ go through list finding parents and populating the global
+        parents, children and orphans lists for later use
+    """
     global parents, children, orphans
     parents = {}
     children = {}
@@ -108,50 +111,35 @@ def _parse_tree():
             children[parent] = [snapshot]
 
 
-class ListOf(list):
-    def __init__(self):
-        pass
-    
-    def __del__(self):
-        pass
-
-
 class Snapshot(object):
 
     def __init__(self, name):
+        
         if isinstance(name, Snapshot):
             self.name = name.name
             self.date = name.date
             return
+        
         # name
         self.name = name
+        
         # date
         pos = len(SNAP_PREFIX)
         date = name[pos:pos + 19]
         try:
             self.date = datetime.datetime.strptime(date, "%Y-%m-%d_%H:%M:%S")
         except ValueError:
-            self.date = None
             if self.name != "@":
-                raise Hell # TODO better error message
-            else:
-                self.date = datetime.datetime.now()
+                raise BadSnapshotError
+            self.date = datetime.datetime.now()
         
     def __getattr__(self, attr):
-        if attr == "parent":
-            return self._get_parent()
-        if attr == "children":
-            return self._get_children()
-        if attr == "changes":
-            return self._load_changes()
-        if attr == "tag":
-            return self._get_tag()
+        if "_get" not in attr and hasattr(self, "_get_%s" % attr):
+            return self.__getattribute__("_get_%s" % attr)()
     
     def __setattr__(self, attr, value):
-        if attr == "parent":
-            self._set_parent(value)
-        elif attr == "changes":
-            self._store_changes(value)
+        if hasattr(self, "_set_%s" % attr):
+            return self.__getattribute__("_set_%s" % attr)(value)
         else:
             object.__setattr__(self, attr, value)
     
@@ -161,9 +149,6 @@ class Snapshot(object):
     def __str__(self):
         return str(self.name)
         
-    def __repr__(self):
-        return '<Snapshot %s>' % self.name
-        
     def __hash__(self):
         return hash(self.date)
         
@@ -172,7 +157,7 @@ class Snapshot(object):
             return self.name == other.name
         return False
     
-    def _load_changes(self):
+    def _get_changes(self):
         changes_file = os.path.join(mp, self.name, CHANGES_FILE)
         try:
             history = pickle.load(open(changes_file, "rb"))
@@ -180,7 +165,7 @@ class Snapshot(object):
         except IOError:
             return None
     
-    def _store_changes(self, changes):
+    def _set_changes(self, changes):
         changes_file = os.path.join(mp, self.name, CHANGES_FILE)
         if changes is None:
             if os.path.exists(changes_file):
@@ -192,17 +177,6 @@ class Snapshot(object):
         if self.name in parents.keys():
             return parents[self.name]
         return None
-
-    def _get_children(self):
-        if self.name in children.keys():
-            return children[self.name]
-        return []
-    
-    def _get_tag(self):
-        pos = len(SNAP_PREFIX)
-        if len(self.name) > pos + 19:
-            return self.name[pos + 20:]
-        return ""
 
     def _set_parent(self, parent):
         """ sets symlink from child to parent 
@@ -217,6 +191,17 @@ class Snapshot(object):
             parent_path = os.path.join(PARENT_DOTS, str(parent))
             os.symlink(parent_path, parent_file)
 
+    def _get_children(self):
+        if self.name in children.keys():
+            return children[self.name]
+        return []
+    
+    def _get_tag(self):
+        pos = len(SNAP_PREFIX)
+        if len(self.name) > pos + 19:
+            return self.name[pos + 20:]
+        return ""
+
     def will_delete(self):
         """ correct parent links and change info for a snapshot about to be
             deleted. Does internal housekeeping as well.
@@ -228,13 +213,13 @@ class Snapshot(object):
         old_history = self.changes
         
         # clean-ups
-        list_of.remove(self)
+        list_of.remove(self) # necessary
         if self.name in children:
-            del children[self.name]
-        if self.name in parents:
+            del children[self.name] # unnecessary
+        if self.name in parents: # unnecessary
             del parents[self.name]
         if parent != None and parent.name in children:
-            children[parent.name].remove(self)
+            children[parent.name].remove(self) # necessary
         
         for child in kids:
             child.parent = parent
@@ -242,7 +227,7 @@ class Snapshot(object):
             # housekeeping
             parents[child.name] = parent
             if parent != None:
-                children[parent.name].append(child)
+                children[parent.name].append(child) # necessary
             
             newer_history = child.changes
             if old_history == None:
@@ -252,5 +237,4 @@ class Snapshot(object):
             else:
                 combined = old_history + newer_history
             child.changes = combined
-
 

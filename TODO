@@ -1,5 +1,5 @@
 Roadmap in order of planned implementation
  
- refactor mount/umount into snapshots.py
+ question: what happens if mounting fails
  
  put on launchpad and publicise
