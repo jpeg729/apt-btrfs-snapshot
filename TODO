@@ -1,5 +1,3 @@
 Roadmap in order of planned implementation
  
- refactor will_delete back into apt_btrfs_snapshot delete()
- 
- put on launchpad and publicise
+ put on launchpad

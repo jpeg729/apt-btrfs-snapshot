@@ -1,5 +1,0 @@
-#!/bin/sh
-
-rm "$2/etc/apt-btrfs-parent"
-
-ln -s "../../$1" "$2/etc/apt-btrfs-parent"
