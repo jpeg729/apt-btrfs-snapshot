@@ -362,7 +362,32 @@ class AptBtrfsSnapshot(object):
                 snapshot.name.startswith(SNAP_PREFIX)):
             
             # correct parent links and combine change info
-            snapshot.will_delete()
+            parent = snapshot.parent
+            children = snapshot.children
+            old_history = snapshot.changes
+            
+            # clean-ups in the global vars of 
+            snapshots.list_of.remove(snapshot)
+            if parent != None and parent.name in snapshots.children:
+                snapshots.children[parent.name].remove(snapshot)
+            
+            for child in children:
+                child.parent = parent
+                
+                # and do the same again in the global vars of snapshots
+                # messy but necessary for delete_older_than to work
+                snapshots.parents[child.name] = parent
+                if parent != None:
+                    snapshots.children[parent.name].append(child) # necessary
+                
+                newer_history = child.changes
+                if old_history == None:
+                    combined = newer_history
+                elif newer_history == None:
+                    combined = None
+                else:
+                    combined = old_history + newer_history
+                child.changes = combined
             
             res = self.commands.btrfs_delete_snapshot(to_delete)
         else:

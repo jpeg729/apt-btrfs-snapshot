@@ -1,5 +1,5 @@
 Roadmap in order of planned implementation
  
- question: what happens if mounting fails
+ refactor will_delete back into apt_btrfs_snapshot delete()
  
  put on launchpad and publicise

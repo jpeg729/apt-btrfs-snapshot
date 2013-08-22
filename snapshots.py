@@ -182,6 +182,7 @@ class Snapshot(object):
         """ sets symlink from child to parent 
             or deletes it if parent == None 
         """
+        old_parent = self.parent
         parent_file = os.path.join(mp, self.name, PARENT_LINK)
         # remove parent link from self
         if os.path.lexists(parent_file):

@@ -66,14 +66,17 @@ class TestSnapshot(unittest.TestCase):
         self.assertEqual(len(snapshots.orphans), 3)
 
     def test_set_parent(self):
-        child = SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go"
-        Snapshot(child).parent = None
+        child = Snapshot(SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go")
+        old_parent = child.parent
+        child.parent = None
         parent_file = os.path.join(self.sandbox, 
             SNAP_PREFIX + "2013-07-31_12:53:16-raring-to-go", PARENT_LINK)
         self.assertFalse(os.path.exists(parent_file))
-        Snapshot(child).parent = SNAP_PREFIX + "2013-07-26_14:50:53"
+        
+        new_parent = SNAP_PREFIX + "2013-07-26_14:50:53"
+        child.parent = new_parent
         self.assertEqual(os.readlink(parent_file), 
-            os.path.join(PARENT_DOTS, SNAP_PREFIX + "2013-07-26_14:50:53"))
+            os.path.join(PARENT_DOTS, new_parent))
 
     def test_list_snapshots(self):
         res = [s.name for s in snapshots.get_list()]
@@ -123,22 +126,6 @@ class TestSnapshot(unittest.TestCase):
         not_tagged = Snapshot(SNAP_PREFIX + "2013-07-26_14:50:53")
         self.assertEqual(tagged.tag, "raring-to-go")
         self.assertEqual(not_tagged.tag, "")
-
-    def test_will_delete(self):
-        list_of = snapshots.list_of
-        random.shuffle(list_of)
-        for snap in list_of:
-            parent = snap.parent
-            children = snap.children
-            snap.will_delete()
-            self.assertNotIn(snap, snapshots.list_of)
-            self.assertNotIn(snap.name, snapshots.parents)
-            self.assertNotIn(snap.name, snapshots.children)
-            for child in children:
-                self.assertEqual(child.parent, parent)
-                if parent != None:
-                    self.assertIn(child, parent.children)
-            snapshots.setup(self.sandbox)
 
 
 if __name__ == "__main__":
